@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LoginForm } from './components/LoginForm';
 import { Layout } from './components/Layout';
@@ -10,17 +10,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 import { authAPI } from './services/api';
 import { Box, Typography } from '@mui/material';
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
+import { theme } from './theme';
 
 const UnauthorizedPage = () => (
   <Box
@@ -29,11 +19,15 @@ const UnauthorizedPage = () => (
     alignItems="center"
     minHeight="100vh"
     flexDirection="column"
+    sx={{
+      background: theme.custom.gradients.background,
+      p: 3,
+    }}
   >
-    <Typography variant="h4" gutterBottom>
+    <Typography variant="h4" gutterBottom sx={{ textAlign: 'center', mb: 2 }}>
       Unauthorized
     </Typography>
-    <Typography variant="body1">
+    <Typography variant="body1" sx={{ textAlign: 'center', opacity: 0.8 }}>
       You don't have permission to access this page.
     </Typography>
   </Box>

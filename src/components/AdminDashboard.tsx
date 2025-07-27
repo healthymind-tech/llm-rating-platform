@@ -21,13 +21,17 @@ import {
   CircularProgress,
   Alert,
   Collapse,
+  Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error } from '@mui/icons-material';
+import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings } from '@mui/icons-material';
 import { User, LLMConfig } from '../types';
 import { authAPI, configAPI } from '../services/api';
 import { SystemMetrics } from './SystemMetrics';
 import { ChatHistoryViewer } from './ChatHistoryViewer';
+import { responsive } from '../theme/responsive';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -45,12 +49,23 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`admin-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && (
+        <Box sx={{ 
+          p: { xs: 2, sm: 3 },
+          [responsive.mobile]: {
+            p: 1.5
+          }
+        }}>
+          {children}
+        </Box>
+      )}
     </div>
   );
 }
 
 export const AdminDashboard: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [tabValue, setTabValue] = useState(0);
   const [users, setUsers] = useState<User[]>([]);
   const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
@@ -319,18 +334,78 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Admin Dashboard
-      </Typography>
+    <>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3 } }}>
+      <Box sx={{ 
+        background: theme.custom.gradients.primary,
+        borderRadius: theme.custom.borderRadius.large,
+        p: { xs: 2, sm: 3 },
+        mb: 3,
+        color: 'white'
+      }}>
+        <Typography 
+          variant={isMobile ? "h5" : "h4"} 
+          gutterBottom
+          sx={{ 
+            fontWeight: 700,
+            textAlign: { xs: 'center', sm: 'left' }
+          }}
+        >
+          Admin Dashboard
+        </Typography>
+        <Typography 
+          variant="body1" 
+          sx={{ 
+            opacity: 0.9,
+            textAlign: { xs: 'center', sm: 'left' }
+          }}
+        >
+          Manage users, configurations, and monitor system performance
+        </Typography>
+      </Box>
 
-      <Card>
-        <CardContent>
-          <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-            <Tab icon={<Dashboard />} label="System Overview" />
-            <Tab icon={<History />} label="Chat History" />
-            <Tab label="User Management" />
-            <Tab label="LLM Configuration" />
+      <Card sx={{ 
+        borderRadius: theme.custom.borderRadius.large,
+        boxShadow: theme.custom.shadows.card,
+        overflow: 'hidden'
+      }}>
+        <CardContent sx={{ p: 0 }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={(_, newValue) => setTabValue(newValue)}
+            variant={isMobile ? "scrollable" : "standard"}
+            scrollButtons={isMobile ? "auto" : false}
+            sx={{
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              '& .MuiTab-root': {
+                minWidth: { xs: 120, sm: 160 },
+                fontWeight: 500,
+                textTransform: 'none',
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }
+            }}
+          >
+            <Tab 
+              icon={<Dashboard />} 
+              label={isMobile ? "Overview" : "System Overview"}
+              iconPosition="start"
+            />
+            <Tab 
+              icon={<History />} 
+              label={isMobile ? "History" : "Chat History"}
+              iconPosition="start"
+            />
+            <Tab 
+              icon={<People />}
+              label={isMobile ? "Users" : "User Management"}
+              iconPosition="start"
+            />
+            <Tab 
+              icon={<Settings />}
+              label={isMobile ? "Config" : "LLM Configuration"}
+              iconPosition="start"
+            />
           </Tabs>
 
           <TabPanel value={tabValue} index={0}>
@@ -342,48 +417,124 @@ export const AdminDashboard: React.FC = () => {
           </TabPanel>
 
           <TabPanel value={tabValue} index={2}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="h6">Manage Users</Typography>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between', 
+              alignItems: { xs: 'stretch', sm: 'center' },
+              gap: 2,
+              mb: 3
+            }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Manage Users
+              </Typography>
               <Button
                 variant="contained"
                 startIcon={<Add />}
                 onClick={() => setUserDialogOpen(true)}
+                sx={{ 
+                  borderRadius: theme.custom.borderRadius.medium,
+                  px: 3,
+                  py: 1.5
+                }}
               >
                 Add User
               </Button>
             </Box>
-            <DataGrid
-              rows={users}
-              columns={userColumns}
-              pageSizeOptions={[5, 10, 25]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              autoHeight
-            />
+            <Box sx={{ 
+              height: { xs: 400, sm: 500 },
+              '& .MuiDataGrid-root': {
+                border: 'none',
+                borderRadius: theme.custom.borderRadius.medium,
+                overflow: 'hidden'
+              }
+            }}>
+              <DataGrid
+                rows={users}
+                columns={userColumns}
+                pageSizeOptions={[5, 10, 25]}
+                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                disableRowSelectionOnClick
+                sx={{
+                  '& .MuiDataGrid-cell': {
+                    borderBottom: '1px solid rgba(0, 0, 0, 0.05)'
+                  },
+                  '& .MuiDataGrid-columnHeaders': {
+                    backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                    fontWeight: 600
+                  }
+                }}
+              />
+            </Box>
           </TabPanel>
 
           <TabPanel value={tabValue} index={3}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="h6">LLM Configurations</Typography>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between', 
+              alignItems: { xs: 'stretch', sm: 'center' },
+              gap: 2,
+              mb: 3
+            }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                LLM Configurations
+              </Typography>
               <Button
                 variant="contained"
                 startIcon={<Add />}
                 onClick={() => setConfigDialogOpen(true)}
+                sx={{ 
+                  borderRadius: theme.custom.borderRadius.medium,
+                  px: 3,
+                  py: 1.5
+                }}
               >
                 Add Configuration
               </Button>
             </Box>
-            <DataGrid
-              rows={llmConfigs}
-              columns={configColumns}
-              pageSizeOptions={[5, 10, 25]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              autoHeight
-            />
+            <Box sx={{ 
+              height: { xs: 400, sm: 500 },
+              '& .MuiDataGrid-root': {
+                border: 'none',
+                borderRadius: theme.custom.borderRadius.medium,
+                overflow: 'hidden'
+              }
+            }}>
+              <DataGrid
+                rows={llmConfigs}
+                columns={configColumns}
+                pageSizeOptions={[5, 10, 25]}
+                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                disableRowSelectionOnClick
+                sx={{
+                  '& .MuiDataGrid-cell': {
+                    borderBottom: '1px solid rgba(0, 0, 0, 0.05)'
+                  },
+                  '& .MuiDataGrid-columnHeaders': {
+                    backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                    fontWeight: 600
+                  }
+                }}
+              />
+            </Box>
           </TabPanel>
         </CardContent>
       </Card>
+      </Container>
 
-      <Dialog open={userDialogOpen} onClose={() => setUserDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={userDialogOpen} 
+        onClose={() => setUserDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: theme.custom.borderRadius.large,
+            boxShadow: theme.custom.shadows.card
+          }
+        }}
+      >
         <DialogTitle>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
         <DialogContent>
           <TextField
@@ -437,7 +588,18 @@ export const AdminDashboard: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={configDialogOpen} onClose={() => setConfigDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog 
+        open={configDialogOpen} 
+        onClose={() => setConfigDialogOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: theme.custom.borderRadius.large,
+            boxShadow: theme.custom.shadows.card
+          }
+        }}
+      >
         <DialogTitle>{selectedConfig ? 'Edit Configuration' : 'Add New Configuration'}</DialogTitle>
         <DialogContent>
           <TextField
@@ -600,7 +762,13 @@ export const AdminDashboard: React.FC = () => {
           />
           
           {/* Test Configuration Section */}
-          <Box sx={{ mt: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+          <Box sx={{ 
+            mt: 3, 
+            p: 3, 
+            border: '1px solid rgba(99, 102, 241, 0.2)', 
+            borderRadius: theme.custom.borderRadius.medium,
+            backgroundColor: 'rgba(99, 102, 241, 0.02)'
+          }}>
             <Typography variant="h6" gutterBottom>
               Test Configuration
             </Typography>
@@ -645,6 +813,6 @@ export const AdminDashboard: React.FC = () => {
           <Button onClick={handleConfigSave} variant="contained">Save</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </>
   );
 };

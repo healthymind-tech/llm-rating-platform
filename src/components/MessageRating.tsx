@@ -10,9 +10,25 @@ import {
   DialogActions,
   TextField,
   Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Collapse,
+  useTheme,
 } from '@mui/material';
-import { ThumbUp, ThumbDown, ThumbUpOffAlt, ThumbDownOffAlt } from '@mui/icons-material';
+import { ThumbUp, ThumbDown, ThumbUpOffAlt, ThumbDownOffAlt, Report } from '@mui/icons-material';
 import { MessageRating } from '../types';
+
+const PRESET_REASONS = [
+  'The response was incorrect or contained false information',
+  'The response was not relevant to my question',
+  'The response was unclear or confusing',
+  'The response was incomplete or missing important details',
+  'The response was too generic or not specific enough',
+  'The response was inappropriate or offensive',
+  'Other (specify below)'
+];
 
 interface MessageRatingProps {
   messageId: string;
@@ -27,8 +43,10 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
   onRate,
   disabled = false,
 }) => {
+  const theme = useTheme();
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
-  const [reason, setReason] = useState('');
+  const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleLike = async () => {
@@ -50,19 +68,42 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
       onRate(messageId, 'dislike'); // This will be handled by parent to remove rating
     } else {
       // Open reason dialog for new dislike
-      setReason(currentRating?.reason || '');
+      const existingReason = currentRating?.reason || '';
+      
+      // Check if existing reason matches a preset
+      const presetMatch = PRESET_REASONS.find(preset => preset === existingReason);
+      if (presetMatch) {
+        setSelectedReason(presetMatch);
+        setCustomReason('');
+      } else if (existingReason) {
+        setSelectedReason('Other (specify below)');
+        setCustomReason(existingReason);
+      } else {
+        setSelectedReason('');
+        setCustomReason('');
+      }
+      
       setReasonDialogOpen(true);
     }
   };
 
   const handleSubmitDislike = async () => {
-    if (!reason.trim()) return;
+    let finalReason = '';
+    
+    if (selectedReason === 'Other (specify below)') {
+      finalReason = customReason.trim();
+    } else {
+      finalReason = selectedReason;
+    }
+    
+    if (!finalReason) return;
     
     setSubmitting(true);
     try {
-      await onRate(messageId, 'dislike', reason.trim());
+      await onRate(messageId, 'dislike', finalReason);
       setReasonDialogOpen(false);
-      setReason('');
+      setSelectedReason('');
+      setCustomReason('');
     } finally {
       setSubmitting(false);
     }
@@ -70,7 +111,15 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
 
   const handleCloseDialog = () => {
     setReasonDialogOpen(false);
-    setReason('');
+    setSelectedReason('');
+    setCustomReason('');
+  };
+
+  const isSubmitDisabled = () => {
+    if (selectedReason === 'Other (specify below)') {
+      return !customReason.trim() || submitting;
+    }
+    return !selectedReason || submitting;
   };
 
   return (
@@ -122,35 +171,107 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
       <Dialog 
         open={reasonDialogOpen} 
         onClose={handleCloseDialog}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: theme.custom?.borderRadius?.large || 2,
+            boxShadow: theme.custom?.shadows?.card || '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }
+        }}
       >
-        <DialogTitle>Why wasn't this response helpful?</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Please explain what was wrong with this response"
-            fullWidth
-            multiline
-            rows={4}
-            variant="outlined"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g., The information was incorrect, not relevant, or unclear..."
-          />
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: 'white',
+          pb: 2
+        }}>
+          <Report />
+          <Box>
+            <Typography variant="h6" fontWeight="bold">
+              Why wasn't this response helpful?
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Please help us improve by selecting a reason
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 4, pb: 3 }}>
+          <FormControl fullWidth sx={{ mt: 2, mb: 3 }}>
+            <InputLabel id="reason-select-label">
+              Select the issue with this response
+            </InputLabel>
+            <Select
+              labelId="reason-select-label"
+              value={selectedReason}
+              label="Select the issue with this response"
+              onChange={(e) => setSelectedReason(e.target.value)}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: theme.custom?.borderRadius?.medium || 1,
+                }
+              }}
+            >
+              <MenuItem value="">
+                <em>Choose a reason...</em>
+              </MenuItem>
+              {PRESET_REASONS.map((reason, index) => (
+                <MenuItem key={index} value={reason}>
+                  {reason}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
+          <Collapse in={selectedReason === 'Other (specify below)'} timeout={300}>
+            <Box>
+              <TextField
+                autoFocus={selectedReason === 'Other (specify below)'}
+                fullWidth
+                multiline
+                rows={3}
+                variant="outlined"
+                label="Please describe the specific issue"
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Please be specific about what was wrong with the response..."
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: theme.custom?.borderRadius?.medium || 1,
+                  }
+                }}
+              />
+            </Box>
+          </Collapse>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog} disabled={submitting}>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={handleCloseDialog} 
+            disabled={submitting}
+            sx={{ 
+              borderRadius: theme.custom?.borderRadius?.medium || 1,
+              px: 3
+            }}
+          >
             Cancel
           </Button>
           <Button 
             onClick={handleSubmitDislike}
             variant="contained"
             color="error"
-            disabled={!reason.trim() || submitting}
+            disabled={isSubmitDisabled()}
+            sx={{ 
+              borderRadius: theme.custom?.borderRadius?.medium || 1,
+              px: 3,
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              }
+            }}
           >
-            {submitting ? 'Submitting...' : 'Submit Rating'}
+            {submitting ? 'Submitting...' : 'Submit Feedback'}
           </Button>
         </DialogActions>
       </Dialog>

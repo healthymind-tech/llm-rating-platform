@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Box, Typography, Card, CardContent, Alert } from '@mui/material';
+import { Box, Typography, Card, CardContent, Alert, Container, useTheme, useMediaQuery } from '@mui/material';
 import { ChatInterface } from './ChatInterface';
 import { ChatMessage, MessageRating } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { chatAPI, messageRatingAPI } from '../services/api';
 
 export const UserDashboard: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAuthStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,20 +33,22 @@ export const UserDashboard: React.FC = () => {
         const newRatings = new Map(messageRatings);
         newRatings.delete(messageId);
         setMessageRatings(newRatings);
+        // Check if we need to wait for rating again after removal
+        setWaitingForRating(hasUnratedAssistantMessage());
       } else {
         // Set or update rating
         const response = await messageRatingAPI.rateMessage(messageId, rating, reason);
         const newRatings = new Map(messageRatings);
         newRatings.set(messageId, response.rating);
         setMessageRatings(newRatings);
+        // Enable input after rating
+        setWaitingForRating(false);
       }
-      
-      // Check if we can continue chatting
-      setWaitingForRating(hasUnratedAssistantMessage());
     } catch (error) {
       console.error('Failed to rate message:', error);
     }
   };
+
 
   const handleSendMessage = async (content: string) => {
     if (!user || waitingForRating) return;
@@ -94,33 +98,117 @@ export const UserDashboard: React.FC = () => {
 
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Welcome, {user?.username}!
-      </Typography>
-      
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Chat with AI Assistant
+    <Box sx={{ 
+      height: 'calc(100vh - 64px)', // Full height minus app bar
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <Container maxWidth="lg" sx={{ 
+        py: { xs: 1, sm: 2 },
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
+        <Box sx={{ 
+          background: theme.custom.gradients.primary,
+          borderRadius: theme.custom.borderRadius.large,
+          p: { xs: 1.5, sm: 2 },
+          mb: { xs: 1.5, sm: 2 },
+          color: 'white',
+          textAlign: { xs: 'center', sm: 'left' },
+          flexShrink: 0
+        }}>
+          <Typography 
+            variant={isMobile ? "h6" : "h5"} 
+            sx={{ 
+              fontWeight: 700,
+              mb: 0.5
+            }}
+          >
+            Welcome, {user?.username}! 👋
           </Typography>
-          
-          {waitingForRating && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Please rate the assistant's response before continuing the conversation.
-            </Alert>
-          )}
-          
-          <ChatInterface
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            loading={loading || waitingForRating}
-            messageRatings={messageRatings}
-            onRateMessage={handleMessageRating}
-            ratingDisabled={loading}
-          />
-        </CardContent>
-      </Card>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              opacity: 0.9,
+              fontSize: { xs: '0.875rem', sm: '0.95rem' }
+            }}
+          >
+            Start a conversation with our AI assistant below
+          </Typography>
+        </Box>
+        
+        <Card sx={{ 
+          borderRadius: theme.custom.borderRadius.large,
+          boxShadow: theme.custom.shadows.card,
+          overflow: 'hidden',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <CardContent sx={{ 
+            p: { xs: 1.5, sm: 2 },
+            '&:last-child': { pb: { xs: 1.5, sm: 2 } },
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            <Box sx={{ 
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              mb: { xs: 1.5, sm: 2 },
+              flexShrink: 0
+            }}>
+              <Box sx={{
+                width: 6,
+                height: 30,
+                background: theme.custom.gradients.secondary,
+                borderRadius: theme.custom.borderRadius.small
+              }} />
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 600,
+                  fontSize: { xs: '1rem', sm: '1.125rem' }
+                }}
+              >
+                Chat with AI Assistant
+              </Typography>
+            </Box>
+            
+            {waitingForRating && (
+              <Alert 
+                severity="info" 
+                sx={{ 
+                  mb: { xs: 1.5, sm: 2 },
+                  borderRadius: theme.custom.borderRadius.medium,
+                  flexShrink: 0,
+                  '& .MuiAlert-message': {
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }
+                }}
+              >
+                Please rate the assistant's response before continuing the conversation.
+              </Alert>
+            )}
+            
+            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+              <ChatInterface
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                loading={loading || waitingForRating}
+                messageRatings={messageRatings}
+                onRateMessage={handleMessageRating}
+                ratingDisabled={loading}
+              />
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
     </Box>
   );
 };

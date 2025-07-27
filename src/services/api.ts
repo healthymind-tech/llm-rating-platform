@@ -156,19 +156,100 @@ export const metricsAPI = {
     return response.data.metrics;
   },
 
-  getChatHistory: async (limit: number = 50, offset: number = 0) => {
-    const response = await api.get(`/metrics/chat-history?limit=${limit}&offset=${offset}`);
+  getChatHistory: async (limit: number = 50, offset: number = 0, filters?: {
+    username?: string;
+    role?: string;
+    rating?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    messageContent?: string;
+  }) => {
+    let url = `/metrics/chat-history?limit=${limit}&offset=${offset}`;
+    
+    if (filters) {
+      if (filters.username) url += `&username=${encodeURIComponent(filters.username)}`;
+      if (filters.role) url += `&role=${filters.role}`;
+      if (filters.rating) url += `&rating=${filters.rating}`;
+      if (filters.dateFrom) url += `&dateFrom=${filters.dateFrom}`;
+      if (filters.dateTo) url += `&dateTo=${filters.dateTo}`;
+      if (filters.messageContent) url += `&messageContent=${encodeURIComponent(filters.messageContent)}`;
+    }
+
+    const response = await api.get(url);
     return response.data;
   },
 
-  getChatSessions: async (limit: number = 20, offset: number = 0) => {
-    const response = await api.get(`/metrics/chat-sessions?limit=${limit}&offset=${offset}&_t=${Date.now()}`);
+  getChatSessions: async (limit: number = 20, offset: number = 0, filters?: {
+    username?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    let url = `/metrics/chat-sessions?limit=${limit}&offset=${offset}&_t=${Date.now()}`;
+    
+    if (filters) {
+      if (filters.username) url += `&username=${encodeURIComponent(filters.username)}`;
+      if (filters.dateFrom) url += `&dateFrom=${filters.dateFrom}`;
+      if (filters.dateTo) url += `&dateTo=${filters.dateTo}`;
+    }
+
+    const response = await api.get(url);
     return response.data;
   },
 
   getSessionMessages: async (sessionId: string) => {
     const response = await api.get(`/metrics/sessions/${sessionId}/messages`);
     return response.data.messages;
+  },
+
+  getUsers: async () => {
+    const response = await api.get('/metrics/users');
+    return response.data.users;
+  },
+
+  exportChatSessions: async (format: string, filters?: {
+    username?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    let url = `/metrics/export/sessions?format=${format}`;
+    
+    if (filters) {
+      if (filters.username) url += `&username=${encodeURIComponent(filters.username)}`;
+      if (filters.dateFrom) url += `&dateFrom=${filters.dateFrom}`;
+      if (filters.dateTo) url += `&dateTo=${filters.dateTo}`;
+    }
+
+    const response = await api.get(url, {
+      responseType: 'blob',
+    });
+    
+    return response;
+  },
+
+  exportChatMessages: async (format: string, filters?: {
+    username?: string;
+    role?: string;
+    rating?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    messageContent?: string;
+  }) => {
+    let url = `/metrics/export/messages?format=${format}`;
+    
+    if (filters) {
+      if (filters.username) url += `&username=${encodeURIComponent(filters.username)}`;
+      if (filters.role) url += `&role=${filters.role}`;
+      if (filters.rating) url += `&rating=${filters.rating}`;
+      if (filters.dateFrom) url += `&dateFrom=${filters.dateFrom}`;
+      if (filters.dateTo) url += `&dateTo=${filters.dateTo}`;
+      if (filters.messageContent) url += `&messageContent=${encodeURIComponent(filters.messageContent)}`;
+    }
+
+    const response = await api.get(url, {
+      responseType: 'blob',
+    });
+    
+    return response;
   },
 };
 

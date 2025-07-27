@@ -52,7 +52,7 @@ CREATE TABLE llm_configs (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Session ratings table
+-- Message ratings table
 CREATE TABLE message_ratings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     message_id UUID REFERENCES chat_messages(id) ON DELETE CASCADE,
@@ -64,6 +64,17 @@ CREATE TABLE message_ratings (
     UNIQUE(message_id, user_id) -- One rating per user per message
 );
 
+-- Session ratings table
+CREATE TABLE session_ratings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    rating VARCHAR(10) NOT NULL CHECK (rating IN ('like', 'dislike')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, user_id) -- One rating per user per session
+);
+
 -- Indexes for better performance
 CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
 CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
@@ -73,6 +84,9 @@ CREATE INDEX idx_llm_configs_is_active ON llm_configs(is_active);
 CREATE INDEX idx_message_ratings_message_id ON message_ratings(message_id);
 CREATE INDEX idx_message_ratings_user_id ON message_ratings(user_id);
 CREATE INDEX idx_message_ratings_rating ON message_ratings(rating);
+CREATE INDEX idx_session_ratings_session_id ON session_ratings(session_id);
+CREATE INDEX idx_session_ratings_user_id ON session_ratings(user_id);
+CREATE INDEX idx_session_ratings_rating ON session_ratings(rating);
 
 -- Triggers to update updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -93,6 +107,10 @@ CREATE TRIGGER update_llm_configs_updated_at
 
 CREATE TRIGGER update_message_ratings_updated_at 
     BEFORE UPDATE ON message_ratings 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_session_ratings_updated_at 
+    BEFORE UPDATE ON session_ratings 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert default admin user (password: 'password')

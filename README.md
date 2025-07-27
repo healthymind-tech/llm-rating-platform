@@ -47,7 +47,7 @@ docker-compose ps
 
 **Start PostgreSQL:**
 ```bash
-docker-compose up -d postgres
+docker compose up -d postgres
 ```
 
 **Backend:**
@@ -176,7 +176,30 @@ OLLAMA_ENDPOINT=http://localhost:11434
 REACT_APP_API_URL=http://localhost:3001/api
 ```
 
-## 🤖 LLM Integration
+## ⭐ Message Rating System
+
+The platform includes a comprehensive message rating system that allows users to provide feedback on AI responses:
+
+### Rating Features
+- **Like/Dislike**: Users can rate messages with thumbs up/down
+- **Detailed Feedback**: Optional reason selection with predefined categories:
+  - Incorrect or false information
+  - Not relevant to question
+  - Unclear or confusing
+  - Incomplete response
+  - Too generic
+  - Inappropriate content
+  - Custom reason (free text)
+- **Real-time Updates**: Instant visual feedback with state persistence
+- **Admin Analytics**: Comprehensive rating analytics and filtering
+
+### Rating Analytics
+- **System Metrics**: Overall rating statistics and trends
+- **Message Filtering**: Filter by rating, user, date range, content
+- **Performance Insights**: Track model performance over time
+- **Detailed Reports**: Export chat history with ratings
+
+## 🤖 LLM Integration"}
 
 ### OpenAI Setup
 1. Get API key from OpenAI
@@ -209,22 +232,22 @@ services:
 ### Docker Commands
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Start with Ollama
-docker-compose --profile ollama up -d
+docker compose --profile ollama up -d
 
 # View logs
-docker-compose logs -f backend
+docker compose logs -f backend
 
 # Rebuild services
-docker-compose build --no-cache
+docker compose build --no-cache
 
 # Stop all services
-docker-compose down
+docker compose down
 
 # Reset database
-docker-compose down -v
+docker compose down -v
 ```
 
 ## 🔧 Development
@@ -249,11 +272,11 @@ npm run typecheck    # TypeScript check
 ### Database Management
 ```bash
 # Connect to database
-docker exec -it llm-platform-db psql -U postgres -d llm_testing_platform
+docker exec -it llm-platform-db psql -U postgres -d llm_rating_platform
 
 # Reset database
-docker-compose down -v postgres
-docker-compose up -d postgres
+docker compose down -v postgres
+docker compose up -d postgres
 ```
 
 ## 📊 Monitoring
@@ -261,16 +284,16 @@ docker-compose up -d postgres
 ### Health Checks
 - Backend: `http://localhost:3001/health`
 - Frontend: `http://localhost:3000`
-- Database: `docker-compose ps postgres`
+- Database: `docker compose ps postgres`
 
 ### Logs
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f backend
-docker-compose logs -f postgres
+docker compose logs -f backend
+docker compose logs -f postgres
 ```
 
 ## 🔒 Security Features
@@ -303,7 +326,7 @@ cd backend && npm run build
 npm run build
 
 # Docker
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ## 🧪 Testing
@@ -361,17 +384,17 @@ MIT License - see LICENSE file for details.
 **Database Connection Failed**
 ```bash
 # Check if PostgreSQL is running
-docker-compose ps postgres
+docker compose ps postgres
 # Restart database
-docker-compose restart postgres
+docker compose restart postgres
 ```
 
 **Backend API Errors**
 ```bash
 # Check backend logs
-docker-compose logs backend
+docker compose logs backend
 # Restart backend
-docker-compose restart backend
+docker compose restart backend
 ```
 
 **Frontend Can't Connect to API**
