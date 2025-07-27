@@ -39,6 +39,8 @@ CREATE TABLE chat_messages (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(10) NOT NULL CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -139,11 +141,11 @@ CREATE TRIGGER update_session_ratings_updated_at
 
 -- Insert default admin user (password: 'admin')
 INSERT INTO users (username, email, password_hash, role) VALUES 
-('admin', 'admin@example.com', '$2b$10$PtIk3fIwT04xn5TYsXVL0us53n/rtyxUpuD7bYamSA0tSCd9dDxxC', 'admin');
+('admin', 'admin@healthymind-tech.com', '$2b$10$PtIk3fIwT04xn5TYsXVL0us53n/rtyxUpuD7bYamSA0tSCd9dDxxC', 'admin');
 
 -- Insert default user (password: 'user')
 INSERT INTO users (username, email, password_hash, role) VALUES 
-('user', 'user@example.com', '$2b$10$smSMX7xkDNny6D7re8ViJe.xQEL754MwhlLZnpfcdpkX3KmJG6I9O', 'user');
+('user', 'user@healthymind-tech.com', '$2b$10$smSMX7xkDNny6D7re8ViJe.xQEL754MwhlLZnpfcdpkX3KmJG6I9O', 'user');
 
 -- System settings table
 CREATE TABLE system_settings (

@@ -130,7 +130,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
     <>
       <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
         <Typography variant="body2" color="textSecondary" gutterBottom>
-          {t('rating.like')} or {t('rating.dislike')}:
+          {t('rating.prompt')}
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center">
           <Button

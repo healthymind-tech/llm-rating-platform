@@ -57,10 +57,14 @@ router.post('/sessions/:sessionId/messages', authenticateToken, async (req: Auth
     const userMessage = await ChatService.saveMessage(sessionId, userId, 'user', message);
 
     // Get AI response
-    const aiResponse = await ChatService.sendMessageToLLM(message, sessionId, userId);
+    const aiResult = await ChatService.sendMessageToLLM(message, sessionId, userId);
 
-    // Save AI response
-    const assistantMessage = await ChatService.saveMessage(sessionId, userId, 'assistant', aiResponse);
+    // Extract token usage
+    const inputTokens = aiResult.tokenUsage?.inputTokens || 0;
+    const outputTokens = aiResult.tokenUsage?.outputTokens || 0;
+
+    // Save AI response with token tracking
+    const assistantMessage = await ChatService.saveMessage(sessionId, userId, 'assistant', aiResult.response, inputTokens, outputTokens);
 
     res.json({
       userMessage,
@@ -94,13 +98,17 @@ router.post('/message', authenticateToken, async (req: AuthRequest, res) => {
     await ChatService.saveMessage(currentSessionId, userId, 'user', message);
 
     // Get AI response
-    const aiResponse = await ChatService.sendMessageToLLM(message, currentSessionId, userId);
+    const aiResult = await ChatService.sendMessageToLLM(message, currentSessionId, userId);
 
-    // Save AI response
-    const assistantMessage = await ChatService.saveMessage(currentSessionId, userId, 'assistant', aiResponse);
+    // Extract token usage
+    const inputTokens = aiResult.tokenUsage?.inputTokens || 0;
+    const outputTokens = aiResult.tokenUsage?.outputTokens || 0;
+
+    // Save AI response with token tracking
+    const assistantMessage = await ChatService.saveMessage(currentSessionId, userId, 'assistant', aiResult.response, inputTokens, outputTokens);
 
     res.json({
-      response: aiResponse,
+      response: aiResult.response,
       sessionId: currentSessionId,
       messageId: assistantMessage.id,
     });
@@ -145,8 +153,12 @@ router.post('/message/stream', authenticateToken, async (req: AuthRequest, res) 
       // Get AI response with streaming
       const aiResponse = await ChatService.sendMessageToLLMStream(message, currentSessionId, userId, res);
 
-      // Save AI response
-      const assistantMessage = await ChatService.saveMessage(currentSessionId, userId, 'assistant', aiResponse);
+      // For streaming, estimate tokens since we don't get usage from OpenAI streaming API
+      const inputTokens = Math.ceil(message.length / 4); // Simple estimation
+      const outputTokens = Math.ceil(aiResponse.length / 4);
+
+      // Save AI response with estimated token tracking
+      const assistantMessage = await ChatService.saveMessage(currentSessionId, userId, 'assistant', aiResponse, inputTokens, outputTokens);
 
       // Send final message ID
       res.write(`data: ${JSON.stringify({ messageId: assistantMessage.id, type: 'complete' })}\n\n`);

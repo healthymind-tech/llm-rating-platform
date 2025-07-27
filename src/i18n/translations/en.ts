@@ -20,7 +20,8 @@ export const en = {
     clear: 'Clear',
     submit: 'Submit',
     reset: 'Reset',
-    actions: 'Actions'
+    actions: 'Actions',
+    saving: 'Saving...'
   },
 
   // Navigation
@@ -42,6 +43,8 @@ export const en = {
     email: 'Email',
     loginButton: 'Sign In',
     loginFailed: 'Login failed. Please check your credentials.',
+    emailRequired: 'Email and password are required',
+    invalidCredentials: 'Invalid credentials',
     accessDenied: 'Access denied. Admin privileges required.',
     sessionExpired: 'Session expired. Please login again.'
   },
@@ -122,6 +125,8 @@ export const en = {
   rating: {
     like: 'Like',
     dislike: 'Dislike',
+    prompt: 'Rate this response:',
+    ratingPrompt: 'Please rate the AI response before continuing',
     reason: 'Reason for dislike',
     reasonPlaceholder: 'Please explain why you disliked this response...',
     reasonRequired: 'Please provide a reason for your dislike',
@@ -146,6 +151,24 @@ export const en = {
     totalMessages: 'Total Messages',
     averageRating: 'Average Rating',
     refreshMetrics: 'Refresh Metrics'
+  },
+
+  // User Profile
+  profile: {
+    title: 'User Profile',
+    description: 'Please provide your body information to help us give you personalized recommendations.',
+    height: 'Height',
+    weight: 'Weight',
+    bodyFat: 'Body Fat Percentage',
+    bodyFatOptional: '(Optional)',
+    lifestyleHabits: 'Lifestyle Habits',
+    lifestyleExample: 'e.g., workout 3x/week, long sitting at work, etc.',
+    heightError: 'Height must be between 1 and 300 cm',
+    weightError: 'Weight must be between 1 and 500 kg',
+    bodyFatError: 'Body fat must be between 0 and 50%',
+    lifestyleError: 'Please describe your lifestyle habits',
+    updateError: 'Failed to update profile. Please try again.',
+    updateSuccess: 'Profile updated successfully!'
   },
 
   // Errors

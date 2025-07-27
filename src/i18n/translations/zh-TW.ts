@@ -20,7 +20,8 @@ export const zhTW = {
     clear: '清除',
     submit: '提交',
     reset: '重設',
-    actions: '操作'
+    actions: '操作',
+    saving: '儲存中...'
   },
 
   // Navigation
@@ -42,6 +43,8 @@ export const zhTW = {
     email: '電子郵件',
     loginButton: '登入',
     loginFailed: '登入失敗，請檢查您的帳號密碼。',
+    emailRequired: '電子郵件和密碼為必填項目',
+    invalidCredentials: '登入資訊無效',
     accessDenied: '存取被拒絕，需要管理員權限。',
     sessionExpired: '工作階段已過期，請重新登入。'
   },
@@ -122,9 +125,11 @@ export const zhTW = {
   rating: {
     like: '讚',
     dislike: '不讚',
+    prompt: '請為此回應評分：',
+    ratingPrompt: '請先為AI回應評分後再繼續',
     reason: '不讚的原因',
     reasonPlaceholder: '請說明您不喜歡這個回應的原因...',
-    reasonRequired: '請提供您不讚的原因',
+    reasonRequired: '請提供您不讚的原因1',
     ratingSuccess: '評分提交成功',
     ratingError: '評分提交失敗',
     reasons: {
@@ -146,6 +151,24 @@ export const zhTW = {
     totalMessages: '總訊息數',
     averageRating: '平均評分',
     refreshMetrics: '重新整理指標'
+  },
+
+  // User Profile
+  profile: {
+    title: '使用者資料',
+    description: '請提供您的身體資訊，以便我們為您提供個人化建議。',
+    height: '身高',
+    weight: '體重',
+    bodyFat: '體脂率',
+    bodyFatOptional: '（選填）',
+    lifestyleHabits: '生活習慣',
+    lifestyleExample: '例如：每週運動3次、久坐辦公等',
+    heightError: '身高必須在1至300公分之間',
+    weightError: '體重必須在1至500公斤之間',
+    bodyFatError: '體脂率必須在0%至50%之間',
+    lifestyleError: '請描述您的生活習慣',
+    updateError: '更新資料失敗，請重試。',
+    updateSuccess: '資料更新成功！'
   },
 
   // Errors

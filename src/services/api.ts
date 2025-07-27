@@ -19,9 +19,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data?.error) {
+      // Extract error message from API response
+      const customError = new Error(error.response.data.error);
+      customError.name = 'APIError';
+      throw customError;
+    }
+    throw error;
+  }
+);
+
 export const authAPI = {
-  login: async (username: string, password: string): Promise<{ user: User; token: string }> => {
-    const response = await api.post('/auth/login', { username, password });
+  login: async (email: string, password: string): Promise<{ user: User; token: string }> => {
+    const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
@@ -47,12 +61,133 @@ export const authAPI = {
   deleteUser: async (id: string): Promise<void> => {
     await api.delete(`/auth/users/${id}`);
   },
+
+  setUserPassword: async (id: string, password: string): Promise<{ message: string }> => {
+    const response = await api.put(`/auth/users/${id}/password`, { password });
+    return response.data;
+  },
+
+  getUsersWithUsage: async (): Promise<Array<User & {
+    tokenUsage: {
+      totalTokens: number;
+      inputTokens: number;
+      outputTokens: number;
+      totalSessions: number;
+      lastUsage: Date | null;
+    }
+  }>> => {
+    const response = await api.get('/auth/users-with-usage');
+    return response.data.users;
+  },
+
+  getUserTokenUsage: async (id: string): Promise<{
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalSessions: number;
+    lastUsage: Date | null;
+  }> => {
+    const response = await api.get(`/auth/users/${id}/token-usage`);
+    return response.data.tokenUsage;
+  },
 };
 
 export const chatAPI = {
   sendMessage: async (message: string, userId: string, sessionId?: string): Promise<{ response: string; sessionId?: string; messageId: string }> => {
     const response = await api.post('/chat/message', { message, sessionId });
     return response.data;
+  },
+
+  sendMessageStream: async (
+    message: string, 
+    userId: string, 
+    sessionId: string | undefined,
+    onChunk: (chunk: string) => void,
+    onComplete: (data: { sessionId?: string; messageId: string }) => void,
+    onError: (error: string) => void
+  ): Promise<void> => {
+    try {
+      const token = localStorage.getItem('auth-storage') 
+        ? JSON.parse(localStorage.getItem('auth-storage')!).state.token
+        : null;
+
+      const response = await fetch(`${API_BASE_URL}/chat/message/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({ message, sessionId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get response reader');
+      }
+
+      const decoder = new TextDecoder();
+      let sessionInfo: { sessionId?: string } = {};
+      let completionReceived = false;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.type === 'session') {
+                  console.log('Session data received:', data);
+                  sessionInfo.sessionId = data.sessionId;
+                } else if (data.type === 'complete') {
+                  console.log('Complete data received:', data);
+                  completionReceived = true;
+                  onComplete({ 
+                    sessionId: sessionInfo.sessionId, 
+                    messageId: data.messageId 
+                  });
+                  break; // Exit after completion
+                } else if (data.content && !data.done) {
+                  onChunk(data.content);
+                } else if (data.error) {
+                  console.error('Stream error:', data);
+                  onError(data.error);
+                  break;
+                } else if (data.done) {
+                  console.log('Stream done - content finished, waiting for completion data');
+                  // Don't break here - wait for completion message with messageId
+                } else {
+                  console.log('Unknown data received:', data);
+                }
+              } catch (parseError) {
+                // Ignore malformed JSON
+              }
+            }
+          }
+        }
+        
+        // If we exit the loop without receiving completion data, there might be an issue
+        if (!completionReceived) {
+          console.warn('Stream ended without completion data - this might indicate an issue');
+          // We could call onError here or handle this case differently
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Unknown error occurred');
+    }
   },
 
   getChatSessions: async (): Promise<any[]> => {
@@ -321,6 +456,28 @@ export const systemSettingsAPI = {
 
   setSystemLanguage: async (language: string) => {
     const response = await api.put('/system-settings/language/set', { language });
+    return response.data;
+  },
+};
+
+export const userProfileAPI = {
+  getUserProfile: async () => {
+    const response = await api.get('/user-profile');
+    return response.data;
+  },
+
+  updateUserProfile: async (profileData: {
+    height: number;
+    weight: number;
+    body_fat?: number;
+    lifestyle_habits: string;
+  }) => {
+    const response = await api.put('/user-profile', profileData);
+    return response.data;
+  },
+
+  checkProfileCompletion: async () => {
+    const response = await api.get('/user-profile/completion-status');
     return response.data;
   },
 };

@@ -104,6 +104,51 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Set user password (admin only)
+router.put('/users/:id/password', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    await AuthService.setUserPassword(id, password);
+    res.json({ message: 'Password updated successfully' });
+  } catch (error: any) {
+    console.error('Set user password error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get user LLM token usage (admin only)
+router.get('/users/:id/token-usage', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tokenUsage = await AuthService.getUserTokenUsage(id);
+    res.json({ tokenUsage });
+  } catch (error: any) {
+    console.error('Get user token usage error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get all users with token usage (admin only)
+router.get('/users-with-usage', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const usersWithUsage = await AuthService.getAllUsersWithTokenUsage();
+    res.json({ users: usersWithUsage });
+  } catch (error) {
+    console.error('Get users with usage error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Delete user (admin only)
 router.delete('/users/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {

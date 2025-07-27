@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Box, Typography, Card, CardContent, Alert, Container, useTheme, useMediaQuery } from '@mui/material';
+import { Box, Typography, Card, CardContent, Alert, Container, useTheme, useMediaQuery, IconButton, Tooltip } from '@mui/material';
 import { ChatInterface } from './ChatInterface';
 import { ChatMessage, MessageRating } from '../types';
 import { useAuthStore } from '../store/authStore';
-import { chatAPI, messageRatingAPI } from '../services/api';
+import { chatAPI, messageRatingAPI, userProfileAPI } from '../services/api';
 import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage } from '../hooks/useLanguage';
+import { UserProfileForm, ProfileData } from './UserProfileForm';
+import { Person } from '@mui/icons-material';
 
 export const UserDashboard: React.FC = () => {
   const theme = useTheme();
@@ -18,16 +20,26 @@ export const UserDashboard: React.FC = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [waitingForRating, setWaitingForRating] = useState(false);
   const [messageRatings, setMessageRatings] = useState<Map<string, MessageRating>>(new Map());
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   // Check if there's an unrated assistant message
   const hasUnratedAssistantMessage = () => {
     const lastMessage = messages[messages.length - 1];
     return lastMessage && 
            lastMessage.role === 'assistant' && 
+           lastMessage.needsRating !== false &&
            !messageRatings.has(lastMessage.id);
   };
 
   const handleMessageRating = async (messageId: string, rating: 'like' | 'dislike', reason?: string) => {
+    // Prevent rating messages with temporary IDs
+    if (messageId.startsWith('assistant-')) {
+      console.warn('Cannot rate message with temporary ID:', messageId);
+      return;
+    }
+    
     try {
       const currentRating = messageRatings.get(messageId);
       
@@ -37,8 +49,8 @@ export const UserDashboard: React.FC = () => {
         const newRatings = new Map(messageRatings);
         newRatings.delete(messageId);
         setMessageRatings(newRatings);
-        // Check if we need to wait for rating again after removal
-        setWaitingForRating(hasUnratedAssistantMessage());
+        // Force waiting for rating since we just removed a rating
+        setWaitingForRating(true);
       } else {
         // Set or update rating
         const response = await messageRatingAPI.rateMessage(messageId, rating, reason);
@@ -53,9 +65,40 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
+  const handleProfileClick = async () => {
+    try {
+      const profile = await userProfileAPI.getUserProfile();
+      setUserProfile(profile);
+      setShowProfileForm(true);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+      setUserProfile(null);
+      setShowProfileForm(true);
+    }
+  };
+
+  const handleProfileSubmit = async (profileData: ProfileData) => {
+    setProfileLoading(true);
+    try {
+      const updatedProfile = await userProfileAPI.updateUserProfile(profileData);
+      setUserProfile(updatedProfile);
+      setShowProfileForm(false);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   const handleSendMessage = async (content: string) => {
-    if (!user || waitingForRating) return;
+    if (!user) return;
+    
+    // Check if there's an unrated assistant message before sending
+    if (hasUnratedAssistantMessage()) {
+      setWaitingForRating(true);
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -67,35 +110,131 @@ export const UserDashboard: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
 
-    try {
-      const data = await chatAPI.sendMessage(content, user.id, currentSessionId || undefined);
-      
-      // Update session ID if we got a new one (first message in session)
-      if (data.sessionId && !currentSessionId) {
-        setCurrentSessionId(data.sessionId);
-      }
-      
-      const assistantMessage: ChatMessage = {
-        id: data.messageId, // Use actual message ID from backend
-        role: 'assistant',
-        content: data.response,
-        timestamp: new Date().toISOString(),
-        needsRating: true,
-      };
+    // Create placeholder assistant message ID for streaming (but don't add to messages yet)
+    const assistantMessageId = `assistant-${Date.now()}`;
 
-      setMessages(prev => [...prev, assistantMessage]);
-      setWaitingForRating(true); // Block further input until rated
+    try {
+      await chatAPI.sendMessageStream(
+        content,
+        user.id,
+        currentSessionId || undefined,
+        // On chunk received
+        (chunk: string) => {
+          setMessages(prev => {
+            // Check if assistant message already exists
+            const assistantExists = prev.some(msg => msg.id === assistantMessageId);
+            
+            if (!assistantExists) {
+              // First chunk - create the assistant message
+              const assistantMessage: ChatMessage = {
+                id: assistantMessageId,
+                role: 'assistant',
+                content: chunk,
+                timestamp: new Date().toISOString(),
+                needsRating: true,
+              };
+              return [...prev, assistantMessage];
+            } else {
+              // Subsequent chunks - append to existing message
+              return prev.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, content: msg.content + chunk }
+                  : msg
+              );
+            }
+          });
+        },
+        // On complete
+        (data: { sessionId?: string; messageId: string }) => {
+          // Update session ID if we got a new one
+          if (data.sessionId && !currentSessionId) {
+            setCurrentSessionId(data.sessionId);
+          }
+          
+          console.log('Stream complete, updating message ID from', assistantMessageId, 'to', data.messageId);
+          
+          // Update message with real ID from backend and set waiting for rating
+          setMessages(prev => 
+            prev.map(msg => {
+              if (msg.id === assistantMessageId) {
+                console.log('Updating message ID:', msg.id, '->', data.messageId);
+                const updatedMsg = { ...msg, id: data.messageId };
+                console.log('Updated message:', updatedMsg);
+                return updatedMsg;
+              }
+              return msg;
+            })
+          );
+          
+          // Force a small delay to ensure React re-renders with new ID
+          setTimeout(() => {
+            console.log('Current messages after ID update:', messages);
+          }, 100);
+          
+          // Set waiting for rating immediately since we just got a new assistant message
+          setWaitingForRating(true);
+          
+          setLoading(false);
+        },
+        // On error
+        (error: string) => {
+          setMessages(prev => {
+            const assistantExists = prev.some(msg => msg.id === assistantMessageId);
+            
+            if (!assistantExists) {
+              // Create error message if assistant message doesn't exist
+              const errorMessage: ChatMessage = {
+                id: assistantMessageId,
+                role: 'assistant',
+                content: t('errors.generic'),
+                timestamp: new Date().toISOString(),
+                needsRating: false,
+              };
+              return [...prev, errorMessage];
+            } else {
+              // Update existing message with error
+              return prev.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { 
+                      ...msg, 
+                      content: t('errors.generic'),
+                      needsRating: false
+                    }
+                  : msg
+              );
+            }
+          });
+          setLoading(false);
+          // Don't block input for error messages
+        }
+      );
     } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`, // Temporary ID for error messages (won't be rated)
-        role: 'assistant',
-        content: t('errors.generic'),
-        timestamp: new Date().toISOString(),
-        needsRating: false, // Don't require rating for error messages
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      // Don't block input for error messages
-    } finally {
+      setMessages(prev => {
+        const assistantExists = prev.some(msg => msg.id === assistantMessageId);
+        
+        if (!assistantExists) {
+          // Create error message if assistant message doesn't exist
+          const errorMessage: ChatMessage = {
+            id: assistantMessageId,
+            role: 'assistant',
+            content: t('errors.generic'),
+            timestamp: new Date().toISOString(),
+            needsRating: false,
+          };
+          return [...prev, errorMessage];
+        } else {
+          // Update existing message with error
+          return prev.map(msg => 
+            msg.id === assistantMessageId 
+              ? { 
+                  ...msg, 
+                  content: t('errors.generic'),
+                  needsRating: false
+                }
+              : msg
+          );
+        }
+      });
       setLoading(false);
     }
   };
@@ -149,11 +288,27 @@ export const UserDashboard: React.FC = () => {
                 variant="h6" 
                 sx={{ 
                   fontWeight: 600,
-                  fontSize: { xs: '1rem', sm: '1.125rem' }
+                  fontSize: { xs: '1rem', sm: '1.125rem' },
+                  flexGrow: 1
                 }}
               >
                 {t('chat.title')}
               </Typography>
+              <Tooltip title={t('profile.title')}>
+                <IconButton
+                  onClick={handleProfileClick}
+                  size="small"
+                  sx={{
+                    color: 'primary.main',
+                    '&:hover': {
+                      backgroundColor: 'primary.light',
+                      color: 'primary.contrastText'
+                    }
+                  }}
+                >
+                  <Person />
+                </IconButton>
+              </Tooltip>
             </Box>
             
             {waitingForRating && (
@@ -168,7 +323,7 @@ export const UserDashboard: React.FC = () => {
                   }
                 }}
               >
-                {t('rating.reasonRequired')}
+                {t('rating.ratingPrompt')}
               </Alert>
             )}
             
@@ -179,12 +334,25 @@ export const UserDashboard: React.FC = () => {
                 loading={loading || waitingForRating}
                 messageRatings={messageRatings}
                 onRateMessage={handleMessageRating}
-                ratingDisabled={loading}
+                ratingDisabled={false}
               />
             </Box>
           </CardContent>
         </Card>
       </Container>
+
+      <UserProfileForm
+        open={showProfileForm}
+        onClose={() => setShowProfileForm(false)}
+        onSubmit={handleProfileSubmit}
+        loading={profileLoading}
+        initialData={userProfile ? {
+          height: userProfile.height,
+          weight: userProfile.weight,
+          body_fat: userProfile.body_fat,
+          lifestyle_habits: userProfile.lifestyle_habits
+        } : undefined}
+      />
     </Box>
   );
 };

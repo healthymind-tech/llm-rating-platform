@@ -71,7 +71,15 @@ export const AdminDashboard: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const { currentLanguage, changeLanguage, supportedLanguages } = useLanguage();
   const { t } = useTranslation();
-  const [users, setUsers] = useState<User[]>([]);
+  const [usersWithUsage, setUsersWithUsage] = useState<Array<User & {
+    tokenUsage: {
+      totalTokens: number;
+      inputTokens: number;
+      outputTokens: number;
+      totalSessions: number;
+      lastUsage: Date | null;
+    }
+  }>>([]);
   const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -84,6 +92,10 @@ export const AdminDashboard: React.FC = () => {
     password: '',
     role: 'user' as 'admin' | 'user',
   });
+
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   const [newConfig, setNewConfig] = useState({
     name: '',
@@ -103,17 +115,17 @@ export const AdminDashboard: React.FC = () => {
   const [systemSettings, setSystemSettings] = useState<SystemSetting[]>([]);
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsersWithUsage();
     fetchLLMConfigs();
     fetchSystemSettings();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsersWithUsage = async () => {
     try {
-      const fetchedUsers = await authAPI.getUsers();
-      setUsers(fetchedUsers);
+      const fetchedUsersWithUsage = await authAPI.getUsersWithUsage();
+      setUsersWithUsage(fetchedUsersWithUsage);
     } catch (error) {
-      console.error('Failed to fetch users:', error);
+      console.error('Failed to fetch users with usage:', error);
     }
   };
 
@@ -226,24 +238,41 @@ export const AdminDashboard: React.FC = () => {
     { field: 'email', headerName: t('admin.users.email'), width: 200 },
     { field: 'role', headerName: t('admin.users.role'), width: 100 },
     { 
+      field: 'totalTokens', 
+      headerName: 'Total Tokens', 
+      width: 120,
+      valueGetter: (value, row) => row.tokenUsage?.totalTokens || 0,
+      renderCell: (params) => (
+        <Box sx={{ color: params.value > 1000 ? 'warning.main' : 'text.primary' }}>
+          {params.value.toLocaleString()}
+        </Box>
+      )
+    },
+    { 
+      field: 'totalSessions', 
+      headerName: 'Sessions', 
+      width: 100,
+      valueGetter: (value, row) => row.tokenUsage?.totalSessions || 0
+    },
+    { 
+      field: 'lastUsage', 
+      headerName: 'Last Usage', 
+      width: 150, 
+      type: 'dateTime',
+      valueGetter: (value, row) => row.tokenUsage?.lastUsage ? new Date(row.tokenUsage.lastUsage) : null
+    },
+    { 
       field: 'createdAt', 
       headerName: t('admin.users.created'), 
       width: 150, 
       type: 'dateTime',
       valueGetter: (value) => new Date(value as string)
     },
-    { 
-      field: 'lastLogin', 
-      headerName: t('admin.users.lastLogin'), 
-      width: 150, 
-      type: 'dateTime',
-      valueGetter: (value) => value ? new Date(value as string) : null
-    },
     {
       field: 'actions',
       type: 'actions',
       headerName: 'Actions',
-      width: 100,
+      width: 150,
       getActions: (params) => [
         <GridActionsCellItem
           icon={<Edit />}
@@ -254,14 +283,24 @@ export const AdminDashboard: React.FC = () => {
           }}
         />,
         <GridActionsCellItem
+          icon={<Settings />}
+          label="Set Password"
+          onClick={() => {
+            setSelectedUserForPassword(params.row);
+            setPasswordDialogOpen(true);
+          }}
+        />,
+        <GridActionsCellItem
           icon={<Delete />}
           label="Delete"
           onClick={async () => {
-            try {
-              await authAPI.deleteUser(params.row.id);
-              await fetchUsers();
-            } catch (error) {
-              console.error('Failed to delete user:', error);
+            if (window.confirm('Are you sure you want to delete this user?')) {
+              try {
+                await authAPI.deleteUser(params.row.id);
+                await fetchUsersWithUsage();
+              } catch (error) {
+                console.error('Failed to delete user:', error);
+              }
             }
           }}
         />,
@@ -317,7 +356,7 @@ export const AdminDashboard: React.FC = () => {
       } else {
         await authAPI.createUser(newUser);
       }
-      await fetchUsers();
+      await fetchUsersWithUsage();
       setUserDialogOpen(false);
       setSelectedUser(null);
       setNewUser({ username: '', email: '', password: '', role: 'user' });
@@ -488,7 +527,7 @@ export const AdminDashboard: React.FC = () => {
               }
             }}>
               <DataGrid
-                rows={users}
+                rows={usersWithUsage}
                 columns={userColumns}
                 pageSizeOptions={[5, 10, 25]}
                 initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
@@ -924,6 +963,61 @@ export const AdminDashboard: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setConfigDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleConfigSave} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog 
+        open={passwordDialogOpen} 
+        onClose={() => {
+          setPasswordDialogOpen(false);
+          setSelectedUserForPassword(null);
+          setNewPassword('');
+        }} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: theme.custom.borderRadius.large,
+            boxShadow: theme.custom.shadows.card
+          }
+        }}
+      >
+        <DialogTitle>Set Password for {selectedUserForPassword?.username}</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="New Password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            margin="normal"
+            helperText="Password must be at least 6 characters long"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setPasswordDialogOpen(false);
+            setSelectedUserForPassword(null);
+            setNewPassword('');
+          }}>Cancel</Button>
+          <Button 
+            onClick={async () => {
+              try {
+                if (!selectedUserForPassword || !newPassword) return;
+                await authAPI.setUserPassword(selectedUserForPassword.id, newPassword);
+                setPasswordDialogOpen(false);
+                setSelectedUserForPassword(null);
+                setNewPassword('');
+                alert('Password updated successfully');
+              } catch (error: any) {
+                alert(error.message || 'Failed to update password');
+              }
+            }} 
+            variant="contained"
+            disabled={newPassword.length < 6}
+          >
+            Set Password
+          </Button>
         </DialogActions>
       </Dialog>
     </>
