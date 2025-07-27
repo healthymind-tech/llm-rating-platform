@@ -14,6 +14,8 @@ import {
 } from '@mui/material';
 import { ExitToApp, Psychology } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
+import { useTranslation } from '../hooks/useTranslation';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -23,6 +25,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, logout } = useAuthStore();
+  const { t } = useTranslation();
+  useLanguage(); // This will monitor for language changes
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -160,7 +164,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   }}
                 >
                   <ExitToApp sx={{ mr: 2 }} />
-                  Logout
+                  {t('auth.logout')}
                 </MenuItem>
               </Menu>
             </Box>

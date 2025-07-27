@@ -4,11 +4,15 @@ import { ChatInterface } from './ChatInterface';
 import { ChatMessage, MessageRating } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { chatAPI, messageRatingAPI } from '../services/api';
+import { useTranslation } from '../hooks/useTranslation';
+import { useLanguage } from '../hooks/useLanguage';
 
 export const UserDashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAuthStore();
+  const { t } = useTranslation();
+  useLanguage(); // This will monitor for language changes
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -85,7 +89,7 @@ export const UserDashboard: React.FC = () => {
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`, // Temporary ID for error messages (won't be rated)
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: t('errors.generic'),
         timestamp: new Date().toISOString(),
         needsRating: false, // Don't require rating for error messages
       };
@@ -111,34 +115,6 @@ export const UserDashboard: React.FC = () => {
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
-        <Box sx={{ 
-          background: theme.custom.gradients.primary,
-          borderRadius: theme.custom.borderRadius.large,
-          p: { xs: 1.5, sm: 2 },
-          mb: { xs: 1.5, sm: 2 },
-          color: 'white',
-          textAlign: { xs: 'center', sm: 'left' },
-          flexShrink: 0
-        }}>
-          <Typography 
-            variant={isMobile ? "h6" : "h5"} 
-            sx={{ 
-              fontWeight: 700,
-              mb: 0.5
-            }}
-          >
-            Welcome, {user?.username}! 👋
-          </Typography>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              opacity: 0.9,
-              fontSize: { xs: '0.875rem', sm: '0.95rem' }
-            }}
-          >
-            Start a conversation with our AI assistant below
-          </Typography>
-        </Box>
         
         <Card sx={{ 
           borderRadius: theme.custom.borderRadius.large,
@@ -176,7 +152,7 @@ export const UserDashboard: React.FC = () => {
                   fontSize: { xs: '1rem', sm: '1.125rem' }
                 }}
               >
-                Chat with AI Assistant
+                {t('chat.title')}
               </Typography>
             </Box>
             
@@ -192,7 +168,7 @@ export const UserDashboard: React.FC = () => {
                   }
                 }}
               >
-                Please rate the assistant's response before continuing the conversation.
+                {t('rating.reasonRequired')}
               </Alert>
             )}
             

@@ -13,6 +13,8 @@ import {
   Fade,
 } from '@mui/material';
 import { Psychology, Login } from '@mui/icons-material';
+import { useTranslation } from '../hooks/useTranslation';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface LoginFormProps {
   onLogin: (username: string, password: string) => Promise<void>;
@@ -21,6 +23,8 @@ interface LoginFormProps {
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { t } = useTranslation();
+  useLanguage(); // This will monitor for language changes
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +38,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     try {
       await onLogin(username, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : t('auth.loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -97,7 +101,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 fontSize: { xs: '0.9rem', sm: '1rem' }
               }}
             >
-              Sign in to access the AI assistant
+              {t('auth.loginButton')}
             </Typography>
           </Box>
           
@@ -119,7 +123,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             <Box component="form" onSubmit={handleSubmit}>
               <TextField
                 fullWidth
-                label="Username"
+                label={t('auth.username')}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 margin="normal"
@@ -133,7 +137,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               />
               <TextField
                 fullWidth
-                label="Password"
+                label={t('auth.password')}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -175,7 +179,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 {loading ? (
                   <CircularProgress size={24} sx={{ color: 'white' }} />
                 ) : (
-                  'Sign In'
+                  t('auth.loginButton')
                 )}
               </Button>
             </Box>

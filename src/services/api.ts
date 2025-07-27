@@ -284,4 +284,45 @@ export const messageRatingAPI = {
   },
 };
 
+export const systemSettingsAPI = {
+  getAllSettings: async () => {
+    const response = await api.get('/system-settings');
+    return response.data.settings;
+  },
+
+  getSetting: async (key: string) => {
+    const response = await api.get(`/system-settings/${key}`);
+    return response.data.setting;
+  },
+
+  updateSetting: async (key: string, value: any, type?: string) => {
+    const response = await api.put(`/system-settings/${key}`, { value, type });
+    return response.data.setting;
+  },
+
+  updateMultipleSettings: async (settings: Array<{key: string, value: any}>) => {
+    const response = await api.put('/system-settings', { settings });
+    return response.data.settings;
+  },
+
+  createSetting: async (key: string, value: any, type: string, description?: string) => {
+    const response = await api.post('/system-settings', { key, value, type, description });
+    return response.data.setting;
+  },
+
+  deleteSetting: async (key: string) => {
+    await api.delete(`/system-settings/${key}`);
+  },
+
+  getSystemLanguage: async () => {
+    const response = await api.get('/system-settings/public/language');
+    return response.data;
+  },
+
+  setSystemLanguage: async (language: string) => {
+    const response = await api.put('/system-settings/language/set', { language });
+    return response.data;
+  },
+};
+
 export default api;

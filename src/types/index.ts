@@ -53,6 +53,16 @@ export interface RatingStats {
   total: number;
 }
 
+export interface SystemSetting {
+  id: string;
+  setting_key: string;
+  setting_value: any;
+  setting_type: 'string' | 'number' | 'boolean' | 'json';
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;

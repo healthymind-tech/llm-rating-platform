@@ -26,9 +26,11 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings } from '@mui/icons-material';
-import { User, LLMConfig } from '../types';
-import { authAPI, configAPI } from '../services/api';
+import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings, Language, Tune } from '@mui/icons-material';
+import { User, LLMConfig, SystemSetting } from '../types';
+import { authAPI, configAPI, systemSettingsAPI } from '../services/api';
+import { useLanguage } from '../hooks/useLanguage';
+import { useTranslation } from '../hooks/useTranslation';
 import { SystemMetrics } from './SystemMetrics';
 import { ChatHistoryViewer } from './ChatHistoryViewer';
 import { responsive } from '../theme/responsive';
@@ -67,6 +69,8 @@ export const AdminDashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [tabValue, setTabValue] = useState(0);
+  const { currentLanguage, changeLanguage, supportedLanguages } = useLanguage();
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
@@ -96,10 +100,12 @@ export const AdminDashboard: React.FC = () => {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [testingConfig, setTestingConfig] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; response?: string } | null>(null);
+  const [systemSettings, setSystemSettings] = useState<SystemSetting[]>([]);
 
   useEffect(() => {
     fetchUsers();
     fetchLLMConfigs();
+    fetchSystemSettings();
   }, []);
 
   const fetchUsers = async () => {
@@ -117,6 +123,38 @@ export const AdminDashboard: React.FC = () => {
       setLlmConfigs(fetchedConfigs);
     } catch (error) {
       console.error('Failed to fetch configs:', error);
+    }
+  };
+
+  const fetchSystemSettings = async () => {
+    try {
+      const settings = await systemSettingsAPI.getAllSettings();
+      setSystemSettings(settings);
+    } catch (error) {
+      console.error('Failed to fetch system settings:', error);
+    }
+  };
+
+  const handleSettingChange = async (settingKey: string, value: any) => {
+    try {
+      await systemSettingsAPI.updateSetting(settingKey, value);
+      
+      // Update local state
+      setSystemSettings(prev => 
+        prev.map(setting => 
+          setting.setting_key === settingKey 
+            ? { ...setting, setting_value: value }
+            : setting
+        )
+      );
+      
+      // If language was changed, update it immediately
+      if (settingKey === 'system_language') {
+        await changeLanguage(value);
+      }
+    } catch (error) {
+      console.error('Failed to update setting:', error);
+      alert('Failed to update setting');
     }
   };
 
@@ -184,19 +222,19 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const userColumns: GridColDef[] = [
-    { field: 'username', headerName: 'Username', width: 150 },
-    { field: 'email', headerName: 'Email', width: 200 },
-    { field: 'role', headerName: 'Role', width: 100 },
+    { field: 'username', headerName: t('admin.users.username'), width: 150 },
+    { field: 'email', headerName: t('admin.users.email'), width: 200 },
+    { field: 'role', headerName: t('admin.users.role'), width: 100 },
     { 
       field: 'createdAt', 
-      headerName: 'Created', 
+      headerName: t('admin.users.created'), 
       width: 150, 
       type: 'dateTime',
       valueGetter: (value) => new Date(value as string)
     },
     { 
       field: 'lastLogin', 
-      headerName: 'Last Login', 
+      headerName: t('admin.users.lastLogin'), 
       width: 150, 
       type: 'dateTime',
       valueGetter: (value) => value ? new Date(value as string) : null
@@ -351,7 +389,7 @@ export const AdminDashboard: React.FC = () => {
             textAlign: { xs: 'center', sm: 'left' }
           }}
         >
-          Admin Dashboard
+          {t('admin.title')}
         </Typography>
         <Typography 
           variant="body1" 
@@ -360,7 +398,7 @@ export const AdminDashboard: React.FC = () => {
             textAlign: { xs: 'center', sm: 'left' }
           }}
         >
-          Manage users, configurations, and monitor system performance
+          {t('admin.subtitle')}
         </Typography>
       </Box>
 
@@ -388,22 +426,22 @@ export const AdminDashboard: React.FC = () => {
           >
             <Tab 
               icon={<Dashboard />} 
-              label={isMobile ? "Overview" : "System Overview"}
+              label={isMobile ? t('admin.systemOverview') : t('admin.systemOverview')}
               iconPosition="start"
             />
             <Tab 
               icon={<History />} 
-              label={isMobile ? "History" : "Chat History"}
+              label={isMobile ? t('admin.chatHistory') : t('admin.chatHistory')}
               iconPosition="start"
             />
             <Tab 
               icon={<People />}
-              label={isMobile ? "Users" : "User Management"}
+              label={isMobile ? t('admin.userManagement') : t('admin.userManagement')}
               iconPosition="start"
             />
             <Tab 
               icon={<Settings />}
-              label={isMobile ? "Config" : "LLM Configuration"}
+              label={isMobile ? t('admin.systemSettings') : t('admin.systemSettings')}
               iconPosition="start"
             />
           </Tabs>
@@ -426,7 +464,7 @@ export const AdminDashboard: React.FC = () => {
               mb: 3
             }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Manage Users
+                {t('admin.users.title')}
               </Typography>
               <Button
                 variant="contained"
@@ -438,7 +476,7 @@ export const AdminDashboard: React.FC = () => {
                   py: 1.5
                 }}
               >
-                Add User
+                {t('admin.users.addUser')}
               </Button>
             </Box>
             <Box sx={{ 
@@ -469,54 +507,129 @@ export const AdminDashboard: React.FC = () => {
           </TabPanel>
 
           <TabPanel value={tabValue} index={3}>
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: { xs: 'column', sm: 'row' },
-              justifyContent: 'space-between', 
-              alignItems: { xs: 'stretch', sm: 'center' },
-              gap: 2,
-              mb: 3
-            }}>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                LLM Configurations
+            {/* System Settings */}
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
+                {t('admin.settings.title')}
               </Typography>
-              <Button
-                variant="contained"
-                startIcon={<Add />}
-                onClick={() => setConfigDialogOpen(true)}
-                sx={{ 
-                  borderRadius: theme.custom.borderRadius.medium,
-                  px: 3,
-                  py: 1.5
-                }}
-              >
-                Add Configuration
-              </Button>
+              
+              <Box sx={{ 
+                display: 'grid', 
+                gap: 3,
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }
+              }}>
+                {/* Language Setting */}
+                <Card sx={{ p: 3 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                    <Language sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    {t('admin.settings.language')}
+                  </Typography>
+                  <FormControl fullWidth>
+                    <Select
+                      value={currentLanguage}
+                      onChange={(e) => handleSettingChange('system_language', e.target.value)}
+                    >
+                      {supportedLanguages.map((lang) => (
+                        <MenuItem key={lang.code} value={lang.code}>
+                          {lang.nativeName} ({lang.name})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Card>
+
+                {/* Other Settings */}
+                {systemSettings.filter(s => s.setting_key !== 'system_language').map((setting) => (
+                  <Card key={setting.id} sx={{ p: 3 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                      {setting.description || setting.setting_key}
+                    </Typography>
+                    {setting.setting_type === 'boolean' ? (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={setting.setting_value}
+                            onChange={(e) => handleSettingChange(setting.setting_key, e.target.checked)}
+                          />
+                        }
+                        label={setting.setting_value ? 'Enabled' : 'Disabled'}
+                      />
+                    ) : setting.setting_type === 'number' ? (
+                      <TextField
+                        type="number"
+                        fullWidth
+                        value={setting.setting_value}
+                        onChange={(e) => handleSettingChange(setting.setting_key, parseFloat(e.target.value))}
+                      />
+                    ) : (
+                      <TextField
+                        fullWidth
+                        value={setting.setting_value}
+                        onChange={(e) => handleSettingChange(setting.setting_key, e.target.value)}
+                      />
+                    )}
+                  </Card>
+                ))}
+              </Box>
             </Box>
-            <Box sx={{ 
-              height: { xs: 400, sm: 500 },
-              '& .MuiDataGrid-root': {
-                border: 'none',
-                borderRadius: theme.custom.borderRadius.medium,
-                overflow: 'hidden'
-              }
-            }}>
-              <DataGrid
-                rows={llmConfigs}
-                columns={configColumns}
-                pageSizeOptions={[5, 10, 25]}
-                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-                disableRowSelectionOnClick
-                sx={{
-                  '& .MuiDataGrid-cell': {
-                    borderBottom: '1px solid rgba(0, 0, 0, 0.05)'
-                  },
-                  '& .MuiDataGrid-columnHeaders': {
-                    backgroundColor: 'rgba(99, 102, 241, 0.05)',
-                    fontWeight: 600
-                  }
-                }}
-              />
+
+            {/* LLM Configuration under System Settings */}
+            <Box sx={{ mt: 6 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
+                <Tune sx={{ mr: 1, verticalAlign: 'middle' }} />
+                {t('admin.llm.title')}
+              </Typography>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between', 
+                alignItems: { xs: 'stretch', sm: 'center' },
+                gap: 2,
+                mb: 3
+              }}>
+                <Typography variant="subtitle1" color="text.secondary">
+                  Manage AI model configurations
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => setConfigDialogOpen(true)}
+                  sx={{ 
+                    borderRadius: theme.custom.borderRadius.medium,
+                    px: 3,
+                    py: 1.5
+                  }}
+                >
+                  {t('admin.llm.addConfig')}
+                </Button>
+              </Box>
+              
+              <Box sx={{ 
+                height: { xs: 400, sm: 500 },
+                '& .MuiDataGrid-root': {
+                  border: 'none',
+                  borderRadius: theme.custom.borderRadius.medium,
+                  overflow: 'hidden'
+                }
+              }}>
+                <DataGrid
+                  rows={llmConfigs}
+                  columns={configColumns}
+                  pageSizeOptions={[5, 10, 25]}
+                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                  disableRowSelectionOnClick
+                  sx={{
+                    '& .MuiDataGrid-cell': {
+                      borderBottom: '1px solid rgba(0, 0, 0, 0.05)'
+                    },
+                    '& .MuiDataGrid-columnHeaders': {
+                      backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                      fontWeight: 600
+                    }
+                  }}
+                />
+              </Box>
             </Box>
           </TabPanel>
         </CardContent>

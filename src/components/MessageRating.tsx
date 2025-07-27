@@ -19,16 +19,8 @@ import {
 } from '@mui/material';
 import { ThumbUp, ThumbDown, ThumbUpOffAlt, ThumbDownOffAlt, Report } from '@mui/icons-material';
 import { MessageRating } from '../types';
+import { useTranslation } from '../hooks/useTranslation';
 
-const PRESET_REASONS = [
-  'The response was incorrect or contained false information',
-  'The response was not relevant to my question',
-  'The response was unclear or confusing',
-  'The response was incomplete or missing important details',
-  'The response was too generic or not specific enough',
-  'The response was inappropriate or offensive',
-  'Other (specify below)'
-];
 
 interface MessageRatingProps {
   messageId: string;
@@ -44,10 +36,21 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
   disabled = false,
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const getPresetReasons = () => [
+    t('rating.reasons.incorrect'),
+    t('rating.reasons.irrelevant'),
+    t('rating.reasons.unclear'),
+    t('rating.reasons.incomplete'),
+    t('rating.reasons.generic'),
+    t('rating.reasons.inappropriate'),
+    t('rating.reasons.other')
+  ];
 
   const handleLike = async () => {
     if (disabled) return;
@@ -71,12 +74,13 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
       const existingReason = currentRating?.reason || '';
       
       // Check if existing reason matches a preset
-      const presetMatch = PRESET_REASONS.find(preset => preset === existingReason);
+      const presetReasons = getPresetReasons();
+      const presetMatch = presetReasons.find(preset => preset === existingReason);
       if (presetMatch) {
         setSelectedReason(presetMatch);
         setCustomReason('');
       } else if (existingReason) {
-        setSelectedReason('Other (specify below)');
+        setSelectedReason(t('rating.reasons.other'));
         setCustomReason(existingReason);
       } else {
         setSelectedReason('');
@@ -90,7 +94,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
   const handleSubmitDislike = async () => {
     let finalReason = '';
     
-    if (selectedReason === 'Other (specify below)') {
+    if (selectedReason === t('rating.reasons.other')) {
       finalReason = customReason.trim();
     } else {
       finalReason = selectedReason;
@@ -116,7 +120,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
   };
 
   const isSubmitDisabled = () => {
-    if (selectedReason === 'Other (specify below)') {
+    if (selectedReason === t('rating.reasons.other')) {
       return !customReason.trim() || submitting;
     }
     return !selectedReason || submitting;
@@ -126,7 +130,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
     <>
       <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
         <Typography variant="body2" color="textSecondary" gutterBottom>
-          Rate this response:
+          {t('rating.like')} or {t('rating.dislike')}:
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center">
           <Button
@@ -137,7 +141,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
             size="small"
             disabled={disabled}
           >
-            Helpful
+            {t('rating.like')}
           </Button>
           <Button
             variant={currentRating?.rating === 'dislike' ? 'contained' : 'outlined'}
@@ -147,11 +151,11 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
             size="small"
             disabled={disabled}
           >
-            Not Helpful
+            {t('rating.dislike')}
           </Button>
           {currentRating && (
             <Chip 
-              label={`Rated ${currentRating.rating === 'like' ? 'helpful' : 'not helpful'}`}
+              label={`${currentRating.rating === 'like' ? t('rating.like') : t('rating.dislike')}`}
               size="small"
               color={currentRating.rating === 'like' ? 'success' : 'error'}
               variant="outlined"
@@ -161,7 +165,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
         {currentRating?.reason && (
           <Box sx={{ mt: 1 }}>
             <Typography variant="caption" color="textSecondary">
-              Reason: {currentRating.reason}
+              {t('rating.reason')}: {currentRating.reason}
             </Typography>
           </Box>
         )}
@@ -191,17 +195,17 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
           <Report />
           <Box>
             <Typography variant="h6" fontWeight="bold">
-              Why wasn't this response helpful?
+              {t('rating.reason')}
             </Typography>
             <Typography variant="body2" sx={{ opacity: 0.9 }}>
-              Please help us improve by selecting a reason
+              {t('rating.reasonRequired')}
             </Typography>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ pt: 4, pb: 3 }}>
           <FormControl fullWidth sx={{ mt: 2, mb: 3 }}>
             <InputLabel id="reason-select-label">
-              Select the issue with this response
+{t('rating.reason')}
             </InputLabel>
             <Select
               labelId="reason-select-label"
@@ -215,9 +219,9 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
               }}
             >
               <MenuItem value="">
-                <em>Choose a reason...</em>
+                <em>{t('rating.reasonRequired')}</em>
               </MenuItem>
-              {PRESET_REASONS.map((reason, index) => (
+              {getPresetReasons().map((reason, index) => (
                 <MenuItem key={index} value={reason}>
                   {reason}
                 </MenuItem>
@@ -225,18 +229,18 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
             </Select>
           </FormControl>
           
-          <Collapse in={selectedReason === 'Other (specify below)'} timeout={300}>
+          <Collapse in={selectedReason === t('rating.reasons.other')} timeout={300}>
             <Box>
               <TextField
-                autoFocus={selectedReason === 'Other (specify below)'}
+                autoFocus={selectedReason === t('rating.reasons.other')}
                 fullWidth
                 multiline
                 rows={3}
                 variant="outlined"
-                label="Please describe the specific issue"
+                label={t('rating.reason')}
                 value={customReason}
                 onChange={(e) => setCustomReason(e.target.value)}
-                placeholder="Please be specific about what was wrong with the response..."
+                placeholder={t('rating.reasonPlaceholder')}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: theme.custom?.borderRadius?.medium || 1,
@@ -255,7 +259,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
               px: 3
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={handleSubmitDislike}
@@ -271,7 +275,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
               }
             }}
           >
-            {submitting ? 'Submitting...' : 'Submit Feedback'}
+            {submitting ? t('common.loading') : t('common.submit')}
           </Button>
         </DialogActions>
       </Dialog>

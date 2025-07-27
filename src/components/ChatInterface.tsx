@@ -16,6 +16,7 @@ import {
 import { Send } from '@mui/icons-material';
 import { ChatMessage, MessageRating } from '../types';
 import { MessageRatingComponent } from './MessageRating';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -39,6 +40,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [inputMessage, setInputMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -104,7 +106,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 maxWidth: 300
               }}
             >
-              Start a conversation with the AI assistant
+              {t('chat.noMessages')}
             </Typography>
           </Box>
         ) : (
@@ -240,7 +242,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             fullWidth
             multiline
             maxRows={isMobile ? 3 : 4}
-            placeholder="Type your message..."
+            placeholder={t('chat.typeMessage')}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             disabled={loading}
