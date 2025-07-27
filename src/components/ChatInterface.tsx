@@ -41,6 +41,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [inputMessage, setInputMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
+  
+  // Debug loading state
+  console.log('ChatInterface loading state:', loading);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -203,14 +206,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     </Paper>
                     
                     {/* Show rating for assistant messages */}
-                    {message.role === 'assistant' && messageRatings && onRateMessage && (
+                    {message.role === 'assistant' && messageRatings && onRateMessage && message.needsRating !== false && (
                       <Box sx={{ mt: 1, ml: message.role === 'assistant' ? 0 : 'auto' }}>
-                        <MessageRatingComponent
-                          messageId={message.id}
-                          currentRating={messageRatings.get(message.id) || null}
-                          onRate={onRateMessage}
-                          disabled={ratingDisabled}
-                        />
+                        {message.id.startsWith('assistant-') ? (
+                          <Typography variant="caption" color="text.secondary">
+                            Processing response... (ID: {message.id})
+                          </Typography>
+                        ) : (
+                          <>
+                            <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
+                              Message ID: {message.id}
+                            </Typography>
+                            <MessageRatingComponent
+                              messageId={message.id}
+                              currentRating={messageRatings.get(message.id) || null}
+                              onRate={onRateMessage}
+                              disabled={ratingDisabled}
+                            />
+                          </>
+                        )}
                       </Box>
                     )}
                   </Box>
@@ -242,7 +256,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             fullWidth
             multiline
             maxRows={isMobile ? 3 : 4}
-            placeholder={t('chat.typeMessage')}
+            placeholder={loading ? t('chat.connecting') : t('chat.typeMessage')}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             disabled={loading}

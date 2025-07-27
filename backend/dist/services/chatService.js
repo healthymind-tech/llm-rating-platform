@@ -46,10 +46,10 @@ class ChatService {
             throw new Error('Failed to fetch chat messages');
         }
     }
-    static async saveMessage(sessionId, userId, role, content) {
+    static async saveMessage(sessionId, userId, role, content, inputTokens = 0, outputTokens = 0) {
         try {
             const messageId = (0, uuid_1.v4)();
-            const result = await database_1.default.query('INSERT INTO chat_messages (id, session_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5) RETURNING *', [messageId, sessionId, userId, role, content]);
+            const result = await database_1.default.query('INSERT INTO chat_messages (id, session_id, user_id, role, content, input_tokens, output_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *', [messageId, sessionId, userId, role, content, inputTokens, outputTokens]);
             // Update session timestamp
             await database_1.default.query('UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [sessionId]);
             return result.rows[0];
@@ -77,17 +77,17 @@ class ChatService {
             }
             // Get conversation history
             const messages = await this.getChatMessages(sessionId, userId);
-            let response;
+            let result;
             if (config.type === 'openai') {
-                response = await this.sendToOpenAI(message, messages, config, userId);
+                result = await this.sendToOpenAI(message, messages, config, userId);
             }
             else if (config.type === 'ollama') {
-                response = await this.sendToOllama(message, messages, config, userId);
+                result = await this.sendToOllama(message, messages, config, userId);
             }
             else {
                 throw new Error('Unsupported LLM type');
             }
-            return response;
+            return result;
         }
         catch (error) {
             console.error('Send message to LLM error:', error);
@@ -162,7 +162,17 @@ class ChatService {
                 temperature: parseFloat(config.temperature),
                 max_tokens: parseInt(config.max_tokens),
             });
-            return completion.choices[0]?.message?.content || 'No response generated';
+            const response = completion.choices[0]?.message?.content || 'No response generated';
+            // Return response with token usage information
+            const result = {
+                response,
+                tokenUsage: completion.usage ? {
+                    inputTokens: completion.usage.prompt_tokens || 0,
+                    outputTokens: completion.usage.completion_tokens || 0,
+                    totalTokens: completion.usage.total_tokens || 0
+                } : undefined
+            };
+            return result;
         }
         catch (error) {
             console.error('OpenAI API error:', error);
@@ -175,16 +185,16 @@ class ChatService {
             if (!config.api_key || config.api_key === null) {
                 // Return demo response when no API key is configured
                 console.log('No API key configured, returning demo response');
-                const demoResponse = this.getDemoResponse(message);
+                const demoResult = this.getDemoResponse(message);
                 // Simulate streaming for demo
-                const words = demoResponse.split(' ');
+                const words = demoResult.response.split(' ');
                 for (let i = 0; i < words.length; i++) {
                     const chunk = (i === 0 ? words[i] : ' ' + words[i]);
                     res.write(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`);
                     await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to simulate streaming
                 }
                 res.write(`data: ${JSON.stringify({ content: '', done: true })}\n\n`);
-                return demoResponse;
+                return demoResult.response;
             }
             console.log('Using OpenAI API with streaming');
             const openai = new openai_1.default({
@@ -278,7 +288,16 @@ class ChatService {
                     num_predict: parseInt(config.max_tokens),
                 },
             });
-            return response.data.message?.content || 'No response generated';
+            const responseContent = response.data.message?.content || 'No response generated';
+            // Return response with estimated token usage for Ollama
+            return {
+                response: responseContent,
+                tokenUsage: {
+                    inputTokens: this.estimateTokens(message),
+                    outputTokens: this.estimateTokens(responseContent),
+                    totalTokens: this.estimateTokens(message + responseContent)
+                }
+            };
         }
         catch (error) {
             console.error('Ollama API error:', error);
@@ -290,16 +309,16 @@ class ChatService {
         try {
             if (!config.endpoint) {
                 // Return demo response when no endpoint is configured
-                const demoResponse = this.getDemoResponse(message);
+                const demoResult = this.getDemoResponse(message);
                 // Simulate streaming for demo
-                const words = demoResponse.split(' ');
+                const words = demoResult.response.split(' ');
                 for (let i = 0; i < words.length; i++) {
                     const chunk = (i === 0 ? words[i] : ' ' + words[i]);
                     res.write(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`);
                     await new Promise(resolve => setTimeout(resolve, 50));
                 }
                 res.write(`data: ${JSON.stringify({ content: '', done: true })}\n\n`);
-                return demoResponse;
+                return demoResult.response;
             }
             // Get user profile information for context
             let userProfileContext = '';
@@ -379,6 +398,10 @@ class ChatService {
             throw new Error(`Ollama API error: ${error.message}`);
         }
     }
+    static estimateTokens(text) {
+        // Simple approximation: 1 token ≈ 4 characters for English text
+        return Math.ceil(text.length / 4);
+    }
     static getDemoResponse(message) {
         const responses = [
             "Hello! I'm a demo AI assistant. This is a test response since no API key is configured. Your message was: \"" + message + "\"",
@@ -387,7 +410,16 @@ class ChatService {
             "Hi there! I'm currently in demo mode. Your question \"" + message + "\" would normally be processed by a configured LLM service.",
             "This is a demonstration response. To enable full AI capabilities, please configure an OpenAI API key or Ollama endpoint in the admin settings."
         ];
-        return responses[Math.floor(Math.random() * responses.length)];
+        const response = responses[Math.floor(Math.random() * responses.length)];
+        // Return response with estimated token usage for demo
+        return {
+            response,
+            tokenUsage: {
+                inputTokens: this.estimateTokens(message),
+                outputTokens: this.estimateTokens(response),
+                totalTokens: this.estimateTokens(message + response)
+            }
+        };
     }
 }
 exports.ChatService = ChatService;

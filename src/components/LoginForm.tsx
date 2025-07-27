@@ -17,7 +17,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage } from '../hooks/useLanguage';
 
 interface LoginFormProps {
-  onLogin: (username: string, password: string) => Promise<void>;
+  onLogin: (email: string, password: string) => Promise<void>;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
@@ -25,7 +25,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { t } = useTranslation();
   useLanguage(); // This will monitor for language changes
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,9 +36,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      await onLogin(username, password);
+      await onLogin(email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.loginFailed'));
+      if (err instanceof Error) {
+        // Map specific API error messages to translation keys
+        if (err.message === 'Email and password are required') {
+          setError(t('auth.emailRequired'));
+        } else if (err.message === 'Invalid credentials') {
+          setError(t('auth.invalidCredentials'));
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError(t('auth.loginFailed'));
+      }
     } finally {
       setLoading(false);
     }
@@ -123,9 +134,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             <Box component="form" onSubmit={handleSubmit}>
               <TextField
                 fullWidth
-                label={t('auth.username')}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                label={t('auth.email')}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 margin="normal"
                 required
                 disabled={loading}
@@ -200,7 +212,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                   fontSize: '0.8rem'
                 }}
               >
-                Demo credentials: admin/admin or user/user
+                Demo credentials: admin@example.com/admin or user@example.com/user
               </Typography>
             </Box>
           </CardContent>

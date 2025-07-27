@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { UserDashboard } from './components/UserDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ProfileCompletionCheck } from './components/ProfileCompletionCheck';
 import { useAuthStore } from './store/authStore';
 import { authAPI } from './services/api';
 import { Box, Typography } from '@mui/material';
@@ -36,9 +37,9 @@ const UnauthorizedPage = () => (
 function App() {
   const { isAuthenticated, user, login } = useAuthStore();
 
-  const handleLogin = async (username: string, password: string) => {
+  const handleLogin = async (email: string, password: string) => {
     try {
-      const { user, token } = await authAPI.login(username, password);
+      const { user, token } = await authAPI.login(email, password);
       login(user, token);
     } catch (error) {
       throw error;
@@ -59,35 +60,37 @@ function App() {
       <CssBaseline />
       <Router>
         <Layout>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Navigate
-                  to={user?.role === 'admin' ? '/admin' : '/dashboard'}
-                  replace
-                />
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute requiredRole="user">
-                  <UserDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/unauthorized" element={<UnauthorizedPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ProfileCompletionCheck>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <Navigate
+                    to={user?.role === 'admin' ? '/admin' : '/dashboard'}
+                    replace
+                  />
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute requiredRole="user">
+                    <UserDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/unauthorized" element={<UnauthorizedPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ProfileCompletionCheck>
         </Layout>
       </Router>
     </ThemeProvider>

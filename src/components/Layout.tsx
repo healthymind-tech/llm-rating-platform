@@ -12,10 +12,12 @@ import {
   Avatar,
   Chip,
 } from '@mui/material';
-import { ExitToApp, Psychology } from '@mui/icons-material';
+import { ExitToApp, Psychology, Person } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage } from '../hooks/useLanguage';
+import { userProfileAPI } from '../services/api';
+import { UserProfileForm, ProfileData } from './UserProfileForm';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +30,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   useLanguage(); // This will monitor for language changes
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [showProfileForm, setShowProfileForm] = React.useState(false);
+  const [profileLoading, setProfileLoading] = React.useState(false);
+  const [userProfile, setUserProfile] = React.useState<any>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -40,6 +45,33 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const handleLogout = () => {
     logout();
     handleClose();
+  };
+
+  const handleProfileClick = async () => {
+    handleClose();
+    try {
+      const profile = await userProfileAPI.getUserProfile();
+      setUserProfile(profile);
+      setShowProfileForm(true);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+      setUserProfile(null);
+      setShowProfileForm(true);
+    }
+  };
+
+  const handleProfileSubmit = async (profileData: ProfileData) => {
+    setProfileLoading(true);
+    try {
+      const updatedProfile = await userProfileAPI.updateUserProfile(profileData);
+      setUserProfile(updatedProfile);
+      setShowProfileForm(false);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    } finally {
+      setProfileLoading(false);
+    }
   };
 
   return (
@@ -153,6 +185,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </Box>
                   </MenuItem>
                 )}
+                {user?.role !== 'admin' && (
+                  <MenuItem onClick={handleProfileClick}>
+                    <Person sx={{ mr: 2 }} />
+                    {t('profile.title')}
+                  </MenuItem>
+                )}
                 <MenuItem 
                   onClick={handleLogout}
                   sx={{
@@ -178,6 +216,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       }}>
         {children}
       </Box>
+
+      <UserProfileForm
+        open={showProfileForm}
+        onClose={() => setShowProfileForm(false)}
+        onSubmit={handleProfileSubmit}
+        loading={profileLoading}
+        initialData={userProfile ? {
+          height: userProfile.height,
+          weight: userProfile.weight,
+          body_fat: userProfile.body_fat,
+          lifestyle_habits: userProfile.lifestyle_habits
+        } : undefined}
+      />
     </Box>
   );
 };

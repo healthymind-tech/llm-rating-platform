@@ -10,11 +10,11 @@ const router = express_1.default.Router();
 // Login
 router.post('/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
-        if (!username || !password) {
-            return res.status(400).json({ error: 'Username and password are required' });
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
         }
-        const result = await authService_1.AuthService.login(username, password);
+        const result = await authService_1.AuthService.login(email, password);
         if (!result) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
@@ -94,6 +94,48 @@ router.put('/users/:id', auth_1.authenticateToken, auth_1.requireAdmin, async (r
     catch (error) {
         console.error('Update user error:', error);
         res.status(400).json({ error: error.message });
+    }
+});
+// Set user password (admin only)
+router.put('/users/:id/password', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ error: 'Password is required' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+        await authService_1.AuthService.setUserPassword(id, password);
+        res.json({ message: 'Password updated successfully' });
+    }
+    catch (error) {
+        console.error('Set user password error:', error);
+        res.status(400).json({ error: error.message });
+    }
+});
+// Get user LLM token usage (admin only)
+router.get('/users/:id/token-usage', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tokenUsage = await authService_1.AuthService.getUserTokenUsage(id);
+        res.json({ tokenUsage });
+    }
+    catch (error) {
+        console.error('Get user token usage error:', error);
+        res.status(400).json({ error: error.message });
+    }
+});
+// Get all users with token usage (admin only)
+router.get('/users-with-usage', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const usersWithUsage = await authService_1.AuthService.getAllUsersWithTokenUsage();
+        res.json({ users: usersWithUsage });
+    }
+    catch (error) {
+        console.error('Get users with usage error:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 // Delete user (admin only)

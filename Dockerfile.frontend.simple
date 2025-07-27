@@ -1,0 +1,14 @@
+# Simple frontend Dockerfile using pre-built files
+FROM nginx:alpine
+
+# Copy built app
+COPY build /usr/share/nginx/html
+
+# Copy custom nginx config for frontend
+COPY frontend-nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
