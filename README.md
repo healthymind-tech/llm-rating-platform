@@ -37,10 +37,10 @@ cp .env.example .env
 ### 3. Start with Docker (Recommended)
 ```bash
 # Start all services (PostgreSQL + Backend + Frontend)
-docker-compose up -d
+docker compose up -d
 
 # Check services are running
-docker-compose ps
+docker compose ps
 ```
 
 ### 4. Manual Setup (Development)
@@ -373,7 +373,7 @@ curl -X POST http://localhost:3001/api/auth/login \
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
