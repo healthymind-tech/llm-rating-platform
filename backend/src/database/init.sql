@@ -121,6 +121,30 @@ INSERT INTO users (username, email, password_hash, role) VALUES
 INSERT INTO users (username, email, password_hash, role) VALUES 
 ('user', 'user@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user');
 
+-- System settings table
+CREATE TABLE system_settings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    setting_key VARCHAR(100) UNIQUE NOT NULL,
+    setting_value TEXT NOT NULL,
+    setting_type VARCHAR(20) NOT NULL CHECK (setting_type IN ('string', 'number', 'boolean', 'json')),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Trigger for system_settings updated_at
+CREATE TRIGGER update_system_settings_updated_at 
+    BEFORE UPDATE ON system_settings 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert default system settings
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description) VALUES
+('system_language', 'en', 'string', 'System language setting (en, zh-TW)'),
+('default_theme', 'modern', 'string', 'Default theme for the application'),
+('chat_history_retention_days', '90', 'number', 'Number of days to retain chat history'),
+('enable_user_registration', 'true', 'boolean', 'Allow new user registration'),
+('max_message_length', '10000', 'number', 'Maximum length for chat messages');
+
 -- Insert default LLM configurations
 INSERT INTO llm_configs (name, type, model, temperature, max_tokens, is_active) VALUES
 ('GPT-4', 'openai', 'gpt-4', 0.7, 2048, true),

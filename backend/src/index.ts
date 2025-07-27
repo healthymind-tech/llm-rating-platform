@@ -51,6 +51,11 @@ try {
   app.use('/api/rating', ratingRoutes);
   console.log('✅ Rating routes loaded');
 
+  console.log('Loading system settings routes...');
+  const systemSettingsRoutes = require('./routes/systemSettings').default;
+  app.use('/api/system-settings', systemSettingsRoutes);
+  console.log('✅ System settings routes loaded');
+
   console.log('Loading message rating routes...');
   try {
     const messageRatingRoutes = require('./routes/messageRating').default;

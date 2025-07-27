@@ -48,6 +48,16 @@ export interface SessionRating {
   updated_at: Date;
 }
 
+export interface SystemSetting {
+  id: string;
+  setting_key: string;
+  setting_value: any;
+  setting_type: 'string' | 'number' | 'boolean' | 'json';
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JWTPayload {
   userId: string;
   username: string;
