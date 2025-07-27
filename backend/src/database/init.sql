@@ -15,6 +15,11 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(10) NOT NULL CHECK (role IN ('admin', 'user')),
+    height DECIMAL(5,2), -- in cm
+    weight DECIMAL(5,2), -- in kg
+    body_fat DECIMAL(5,2), -- percentage (optional)
+    lifestyle_habits TEXT, -- text description
+    profile_completed BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP
 );
@@ -97,6 +102,25 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Function to update profile_completed flag
+CREATE OR REPLACE FUNCTION update_profile_completed()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.profile_completed = (
+        NEW.height IS NOT NULL AND 
+        NEW.weight IS NOT NULL AND 
+        NEW.lifestyle_habits IS NOT NULL AND 
+        NEW.lifestyle_habits != ''
+    );
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Trigger for profile completion
+CREATE TRIGGER update_users_profile_completed 
+    BEFORE UPDATE ON users 
+    FOR EACH ROW EXECUTE FUNCTION update_profile_completed();
+
 CREATE TRIGGER update_chat_sessions_updated_at 
     BEFORE UPDATE ON chat_sessions 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -113,13 +137,13 @@ CREATE TRIGGER update_session_ratings_updated_at
     BEFORE UPDATE ON session_ratings 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert default admin user (password: 'password')
+-- Insert default admin user (password: 'admin')
 INSERT INTO users (username, email, password_hash, role) VALUES 
-('admin', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+('admin', 'admin@example.com', '$2b$10$PtIk3fIwT04xn5TYsXVL0us53n/rtyxUpuD7bYamSA0tSCd9dDxxC', 'admin');
 
--- Insert default user (password: 'password')
+-- Insert default user (password: 'user')
 INSERT INTO users (username, email, password_hash, role) VALUES 
-('user', 'user@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user');
+('user', 'user@example.com', '$2b$10$smSMX7xkDNny6D7re8ViJe.xQEL754MwhlLZnpfcdpkX3KmJG6I9O', 'user');
 
 -- System settings table
 CREATE TABLE system_settings (

@@ -46,6 +46,14 @@ try {
     const ratingRoutes = require('./routes/rating').default;
     app.use('/api/rating', ratingRoutes);
     console.log('✅ Rating routes loaded');
+    console.log('Loading system settings routes...');
+    const systemSettingsRoutes = require('./routes/systemSettings').default;
+    app.use('/api/system-settings', systemSettingsRoutes);
+    console.log('✅ System settings routes loaded');
+    console.log('Loading user profile routes...');
+    const userProfileRoutes = require('./routes/userProfile').default;
+    app.use('/api/user-profile', userProfileRoutes);
+    console.log('✅ User profile routes loaded');
     console.log('Loading message rating routes...');
     try {
         const messageRatingRoutes = require('./routes/messageRating').default;

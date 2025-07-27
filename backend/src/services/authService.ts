@@ -5,11 +5,11 @@ import pool from '../config/database';
 import { User, JWTPayload } from '../types';
 
 export class AuthService {
-  static async login(username: string, password: string): Promise<{ user: Omit<User, 'password_hash'>; token: string } | null> {
+  static async login(email: string, password: string): Promise<{ user: Omit<User, 'password_hash'>; token: string } | null> {
     try {
       const result = await pool.query(
-        'SELECT * FROM users WHERE username = $1',
-        [username]
+        'SELECT * FROM users WHERE email = $1',
+        [email]
       );
 
       if (result.rows.length === 0) {

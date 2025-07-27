@@ -8,13 +8,13 @@ const router = express.Router();
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const result = await AuthService.login(username, password);
+    const result = await AuthService.login(email, password);
 
     if (!result) {
       return res.status(401).json({ error: 'Invalid credentials' });

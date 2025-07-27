@@ -4,6 +4,17 @@ import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
+// Get system language (public endpoint for language switching) - MUST be before /:key route
+router.get('/public/language', async (req, res) => {
+  try {
+    const language = await SystemSettingsService.getSystemLanguage();
+    res.json({ language });
+  } catch (error: any) {
+    console.error('Get system language error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all system settings (admin only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -28,17 +39,6 @@ router.get('/:key', authenticateToken, async (req, res) => {
     res.json({ setting });
   } catch (error: any) {
     console.error('Get setting error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get system language (public endpoint for language switching)
-router.get('/public/language', async (req, res) => {
-  try {
-    const language = await SystemSettingsService.getSystemLanguage();
-    res.json({ language });
-  } catch (error: any) {
-    console.error('Get system language error:', error);
     res.status(500).json({ error: error.message });
   }
 });

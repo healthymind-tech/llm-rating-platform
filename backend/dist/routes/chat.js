@@ -100,5 +100,48 @@ router.post('/message', auth_1.authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// Streaming chat endpoint
+router.post('/message/stream', auth_1.authenticateToken, async (req, res) => {
+    try {
+        const { message, sessionId } = req.body;
+        const userId = req.user.userId;
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+        // Set SSE headers
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+        let currentSessionId = sessionId;
+        // Create new session if not provided
+        if (!currentSessionId) {
+            const session = await chatService_1.ChatService.createChatSession(userId);
+            currentSessionId = session.id;
+        }
+        // Save user message
+        await chatService_1.ChatService.saveMessage(currentSessionId, userId, 'user', message);
+        // Send session info first
+        res.write(`data: ${JSON.stringify({ sessionId: currentSessionId, type: 'session' })}\n\n`);
+        try {
+            // Get AI response with streaming
+            const aiResponse = await chatService_1.ChatService.sendMessageToLLMStream(message, currentSessionId, userId, res);
+            // Save AI response
+            const assistantMessage = await chatService_1.ChatService.saveMessage(currentSessionId, userId, 'assistant', aiResponse);
+            // Send final message ID
+            res.write(`data: ${JSON.stringify({ messageId: assistantMessage.id, type: 'complete' })}\n\n`);
+        }
+        catch (streamError) {
+            console.error('Streaming error:', streamError);
+            res.write(`data: ${JSON.stringify({ error: streamError.message, done: true })}\n\n`);
+        }
+        res.end();
+    }
+    catch (error) {
+        console.error('Streaming endpoint error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 exports.default = router;
 //# sourceMappingURL=chat.js.map
