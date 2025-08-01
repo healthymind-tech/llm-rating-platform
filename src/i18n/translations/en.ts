@@ -82,6 +82,8 @@ export const en = {
       chatRetention: 'Chat History Retention (days)',
       userRegistration: 'Enable User Registration',
       maxMessageLength: 'Maximum Message Length',
+      requireBodyInfo: 'Require User Body Information',
+      requireBodyInfoDesc: 'When enabled, users must provide height, weight, and lifestyle information for personalized LLM responses',
       updateSettings: 'Update Settings',
       settingsUpdated: 'Settings updated successfully'
     },
@@ -168,7 +170,13 @@ export const en = {
     bodyFatError: 'Body fat must be between 0 and 50%',
     lifestyleError: 'Please describe your lifestyle habits',
     updateError: 'Failed to update profile. Please try again.',
-    updateSuccess: 'Profile updated successfully!'
+    updateSuccess: 'Profile updated successfully!',
+    incompleteLogoutTitle: 'Incomplete Profile',
+    incompleteLogoutMessage: 'Your profile is incomplete. You need to provide your body information before using the platform.',
+    incompleteLogoutWarning: 'You can only logout if you do not wish to complete your profile now.',
+    privacyPreference: 'Privacy Preference',
+    includeBodyInfo: 'Include my body information in AI responses',
+    includeBodyInfoDesc: 'When enabled, the AI will use your body information to provide personalized fitness and health advice. When disabled, your information stays private.'
   },
 
   // Errors

@@ -107,13 +107,30 @@ $$ language 'plpgsql';
 -- Function to update profile_completed flag
 CREATE OR REPLACE FUNCTION update_profile_completed()
 RETURNS TRIGGER AS $$
+DECLARE
+    require_body_info BOOLEAN;
 BEGIN
-    NEW.profile_completed = (
-        NEW.height IS NOT NULL AND 
-        NEW.weight IS NOT NULL AND 
-        NEW.lifestyle_habits IS NOT NULL AND 
-        NEW.lifestyle_habits != ''
-    );
+    -- Check if body information is required
+    SELECT CASE 
+        WHEN setting_value = 'true' THEN TRUE 
+        ELSE FALSE 
+    END INTO require_body_info
+    FROM system_settings 
+    WHERE setting_key = 'require_user_body_info';
+    
+    -- If body info is not required, profile is always complete
+    IF require_body_info IS NULL OR require_body_info = FALSE THEN
+        NEW.profile_completed = TRUE;
+    ELSE
+        -- Check if required body information is provided
+        NEW.profile_completed = (
+            NEW.height IS NOT NULL AND 
+            NEW.weight IS NOT NULL AND 
+            NEW.lifestyle_habits IS NOT NULL AND 
+            NEW.lifestyle_habits != ''
+        );
+    END IF;
+    
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -169,7 +186,8 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 ('default_theme', 'modern', 'string', 'Default theme for the application'),
 ('chat_history_retention_days', '90', 'number', 'Number of days to retain chat history'),
 ('enable_user_registration', 'true', 'boolean', 'Allow new user registration'),
-('max_message_length', '10000', 'number', 'Maximum length for chat messages');
+('max_message_length', '10000', 'number', 'Maximum length for chat messages'),
+('require_user_body_info', 'true', 'boolean', 'Require users to provide body information (height, weight, lifestyle) for LLM context');
 
 -- Insert default LLM configurations
 INSERT INTO llm_configs (name, type, model, temperature, max_tokens, is_active) VALUES

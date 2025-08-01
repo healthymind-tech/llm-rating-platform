@@ -10,10 +10,14 @@ import {
   Typography,
   Alert,
   CircularProgress,
-  InputAdornment
+  InputAdornment,
+  FormControlLabel,
+  Switch,
+  Divider
 } from '@mui/material';
-import { Person, MonitorWeight, FitnessCenter, DirectionsRun } from '@mui/icons-material';
+import { Person, MonitorWeight, FitnessCenter, DirectionsRun, Security } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
+import { userProfileAPI } from '../services/api';
 
 interface UserProfileFormProps {
   open: boolean;
@@ -28,6 +32,7 @@ export interface ProfileData {
   weight: number;
   body_fat?: number;
   lifestyle_habits: string;
+  include_body_in_prompts?: boolean;
 }
 
 export const UserProfileForm: React.FC<UserProfileFormProps> = ({
@@ -42,10 +47,28 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
     height: 0,
     weight: 0,
     body_fat: undefined,
-    lifestyle_habits: ''
+    lifestyle_habits: '',
+    include_body_in_prompts: true
   });
   const [errors, setErrors] = useState<Partial<ProfileData>>({});
   const [submitError, setSubmitError] = useState('');
+  const [isBodyInfoRequired, setIsBodyInfoRequired] = useState<boolean>(true);
+
+  // Check if body info is required when form opens
+  useEffect(() => {
+    if (open) {
+      const checkBodyInfoRequirement = async () => {
+        try {
+          const response = await userProfileAPI.isBodyInfoRequired();
+          setIsBodyInfoRequired(response.required);
+        } catch (error) {
+          console.error('Failed to check body info requirement:', error);
+          setIsBodyInfoRequired(true); // Default to required
+        }
+      };
+      checkBodyInfoRequirement();
+    }
+  }, [open]);
 
   // Update form data when initialData changes
   useEffect(() => {
@@ -54,7 +77,8 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
         height: initialData.height || 0,
         weight: initialData.weight || 0,
         body_fat: initialData.body_fat || undefined,
-        lifestyle_habits: initialData.lifestyle_habits || ''
+        lifestyle_habits: initialData.lifestyle_habits || '',
+        include_body_in_prompts: initialData.include_body_in_prompts !== undefined ? initialData.include_body_in_prompts : true
       });
     } else {
       // Reset form for new users
@@ -62,7 +86,8 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
         height: 0,
         weight: 0,
         body_fat: undefined,
-        lifestyle_habits: ''
+        lifestyle_habits: '',
+        include_body_in_prompts: true
       });
     }
     // Clear errors when form data resets
@@ -73,20 +98,37 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
   const validateForm = (): boolean => {
     const newErrors: Partial<ProfileData> = {};
 
-    if (!formData.height || formData.height <= 0 || formData.height > 300) {
-      newErrors.height = 0;
+    // Only validate if body info is required
+    if (isBodyInfoRequired) {
+      if (!formData.height || formData.height <= 0 || formData.height > 300) {
+        newErrors.height = 0;
+      }
+
+      if (!formData.weight || formData.weight <= 0 || formData.weight > 500) {
+        newErrors.weight = 0;
+      }
+
+      if (!formData.lifestyle_habits || formData.lifestyle_habits.trim().length === 0) {
+        newErrors.lifestyle_habits = '';
+      }
+    } else {
+      // When not required, still validate if values are provided
+      if (formData.height !== undefined && formData.height !== 0 && (formData.height <= 0 || formData.height > 300)) {
+        newErrors.height = 0;
+      }
+
+      if (formData.weight !== undefined && formData.weight !== 0 && (formData.weight <= 0 || formData.weight > 500)) {
+        newErrors.weight = 0;
+      }
+
+      if (formData.lifestyle_habits && formData.lifestyle_habits.trim().length === 0) {
+        newErrors.lifestyle_habits = '';
+      }
     }
 
-    if (!formData.weight || formData.weight <= 0 || formData.weight > 500) {
-      newErrors.weight = 0;
-    }
-
+    // Body fat validation (always optional)
     if (formData.body_fat !== undefined && (formData.body_fat < 0 || formData.body_fat > 50)) {
       newErrors.body_fat = 0;
-    }
-
-    if (!formData.lifestyle_habits || formData.lifestyle_habits.trim().length === 0) {
-      newErrors.lifestyle_habits = '';
     }
 
     setErrors(newErrors);
@@ -157,7 +199,10 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
       <form onSubmit={handleSubmit}>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {t('profile.description')}
+            {isBodyInfoRequired 
+              ? t('profile.description')
+              : 'You can optionally provide body information for more personalized responses.'
+            }
           </Typography>
 
           {submitError && (
@@ -166,85 +211,120 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
             </Alert>
           )}
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              label={t('profile.height')}
-              type="number"
-              value={formData.height === 0 ? '' : formData.height}
-              onChange={handleInputChange('height')}
-              error={!!errors.height}
-              helperText={errors.height !== undefined ? t('profile.heightError') : ''}
-              required
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Person />
-                  </InputAdornment>
-                ),
-                endAdornment: <InputAdornment position="end">cm</InputAdornment>
-              }}
-              inputProps={{ min: 1, max: 300, step: 0.1 }}
-            />
+          {isBodyInfoRequired ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                label={t('profile.height')}
+                type="number"
+                value={formData.height === 0 ? '' : formData.height}
+                onChange={handleInputChange('height')}
+                error={!!errors.height}
+                helperText={errors.height !== undefined ? t('profile.heightError') : ''}
+                required
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Person />
+                    </InputAdornment>
+                  ),
+                  endAdornment: <InputAdornment position="end">cm</InputAdornment>
+                }}
+                inputProps={{ min: 1, max: 300, step: 0.1 }}
+              />
 
-            <TextField
-              label={t('profile.weight')}
-              type="number"
-              value={formData.weight === 0 ? '' : formData.weight}
-              onChange={handleInputChange('weight')}
-              error={!!errors.weight}
-              helperText={errors.weight !== undefined ? t('profile.weightError') : ''}
-              required
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <MonitorWeight />
-                  </InputAdornment>
-                ),
-                endAdornment: <InputAdornment position="end">kg</InputAdornment>
-              }}
-              inputProps={{ min: 1, max: 500, step: 0.1 }}
-            />
+              <TextField
+                label={t('profile.weight')}
+                type="number"
+                value={formData.weight === 0 ? '' : formData.weight}
+                onChange={handleInputChange('weight')}
+                error={!!errors.weight}
+                helperText={errors.weight !== undefined ? t('profile.weightError') : ''}
+                required
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MonitorWeight />
+                    </InputAdornment>
+                  ),
+                  endAdornment: <InputAdornment position="end">kg</InputAdornment>
+                }}
+                inputProps={{ min: 1, max: 500, step: 0.1 }}
+              />
 
-            <TextField
-              label={t('profile.bodyFat')}
-              type="number"
-              value={formData.body_fat || ''}
-              onChange={handleInputChange('body_fat')}
-              error={!!errors.body_fat}
-              helperText={errors.body_fat !== undefined ? t('profile.bodyFatError') : t('profile.bodyFatOptional')}
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <FitnessCenter />
-                  </InputAdornment>
-                ),
-                endAdornment: <InputAdornment position="end">%</InputAdornment>
-              }}
-              inputProps={{ min: 0, max: 50, step: 0.1 }}
-            />
+              <TextField
+                label={t('profile.bodyFat')}
+                type="number"
+                value={formData.body_fat || ''}
+                onChange={handleInputChange('body_fat')}
+                error={!!errors.body_fat}
+                helperText={errors.body_fat !== undefined ? t('profile.bodyFatError') : t('profile.bodyFatOptional')}
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <FitnessCenter />
+                    </InputAdornment>
+                  ),
+                  endAdornment: <InputAdornment position="end">%</InputAdornment>
+                }}
+                inputProps={{ min: 0, max: 50, step: 0.1 }}
+              />
 
-            <TextField
-              label={t('profile.lifestyleHabits')}
-              multiline
-              rows={3}
-              value={formData.lifestyle_habits}
-              onChange={handleInputChange('lifestyle_habits')}
-              error={!!errors.lifestyle_habits}
-              helperText={errors.lifestyle_habits !== undefined ? t('profile.lifestyleError') : t('profile.lifestyleExample')}
-              required
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <DirectionsRun />
-                  </InputAdornment>
-                )
-              }}
-            />
-          </Box>
+              <TextField
+                label={t('profile.lifestyleHabits')}
+                multiline
+                rows={3}
+                value={formData.lifestyle_habits}
+                onChange={handleInputChange('lifestyle_habits')}
+                error={!!errors.lifestyle_habits}
+                helperText={errors.lifestyle_habits !== undefined ? t('profile.lifestyleError') : t('profile.lifestyleExample')}
+                required
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <DirectionsRun />
+                    </InputAdornment>
+                  )
+                }}
+              />
+
+              {/* Privacy Preference Section */}
+              <Divider sx={{ my: 3 }} />
+              
+              <Box sx={{ p: 2, bgcolor: 'rgba(99, 102, 241, 0.05)', borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Security fontSize="small" />
+                  {t('profile.privacyPreference')}
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.include_body_in_prompts || false}
+                      onChange={(e) => setFormData(prev => ({ ...prev, include_body_in_prompts: e.target.checked }))}
+                      disabled={loading}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {t('profile.includeBodyInfo')}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {t('profile.includeBodyInfoDesc')}
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+            </Box>
+          ) : (
+            <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+              Body information is not required for this platform. You can continue using the chat without providing personal details.
+            </Typography>
+          )}
         </DialogContent>
 
         <DialogActions sx={{ p: 3, pt: 1 }}>
@@ -253,16 +333,18 @@ export const UserProfileForm: React.FC<UserProfileFormProps> = ({
             disabled={loading}
             color="inherit"
           >
-            {t('common.cancel')}
+            {isBodyInfoRequired ? t('common.cancel') : 'Skip'}
           </Button>
-          <Button 
-            type="submit" 
-            variant="contained" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : undefined}
-          >
-            {loading ? t('common.saving') : t('common.save')}
-          </Button>
+          {isBodyInfoRequired && (
+            <Button 
+              type="submit" 
+              variant="contained" 
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={20} /> : undefined}
+            >
+              {loading ? t('common.saving') : t('common.save')}
+            </Button>
+          )}
         </DialogActions>
       </form>
     </Dialog>

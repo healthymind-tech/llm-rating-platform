@@ -82,6 +82,8 @@ export const zhTW = {
       chatRetention: '聊天記錄保留天數',
       userRegistration: '啟用使用者註冊',
       maxMessageLength: '訊息最大長度',
+      requireBodyInfo: '要求使用者身體資訊',
+      requireBodyInfoDesc: '啟用時，使用者必須提供身高、體重和生活習慣資訊以獲得個人化的 LLM 回應',
       updateSettings: '更新設定',
       settingsUpdated: '設定更新成功'
     },
@@ -129,7 +131,7 @@ export const zhTW = {
     ratingPrompt: '請先為AI回應評分後再繼續',
     reason: '不讚的原因',
     reasonPlaceholder: '請說明您不喜歡這個回應的原因...',
-    reasonRequired: '請提供您不讚的原因1',
+    reasonRequired: '請提供您不讚的原因',
     ratingSuccess: '評分提交成功',
     ratingError: '評分提交失敗',
     reasons: {
@@ -168,7 +170,13 @@ export const zhTW = {
     bodyFatError: '體脂率必須在0%至50%之間',
     lifestyleError: '請描述您的生活習慣',
     updateError: '更新資料失敗，請重試。',
-    updateSuccess: '資料更新成功！'
+    updateSuccess: '資料更新成功！',
+    incompleteLogoutTitle: '資料未完成',
+    incompleteLogoutMessage: '您的資料尚未完成，需要提供身體資訊才能使用平台。',
+    incompleteLogoutWarning: '如果您不想現在完成資料，只能選擇登出。',
+    privacyPreference: '隱私偏好',
+    includeBodyInfo: '在 AI 回應中包含我的身體資訊',
+    includeBodyInfoDesc: '啟用時，AI 會使用您的身體資訊提供個人化的健身和健康建議。停用時，您的資訊保持私密。'
   },
 
   // Errors

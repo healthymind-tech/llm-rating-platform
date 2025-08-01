@@ -471,6 +471,7 @@ export const userProfileAPI = {
     weight: number;
     body_fat?: number;
     lifestyle_habits: string;
+    include_body_in_prompts?: boolean;
   }) => {
     const response = await api.put('/user-profile', profileData);
     return response.data;
@@ -478,6 +479,11 @@ export const userProfileAPI = {
 
   checkProfileCompletion: async () => {
     const response = await api.get('/user-profile/completion-status');
+    return response.data;
+  },
+
+  isBodyInfoRequired: async (): Promise<{ required: boolean }> => {
+    const response = await api.get('/user-profile/body-info-required');
     return response.data;
   },
 };

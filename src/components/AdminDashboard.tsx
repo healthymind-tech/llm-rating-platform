@@ -577,8 +577,29 @@ export const AdminDashboard: React.FC = () => {
                   </FormControl>
                 </Card>
 
+                {/* Body Information Setting */}
+                {systemSettings.filter(s => s.setting_key === 'require_user_body_info').map((setting) => (
+                  <Card key={setting.id} sx={{ p: 3 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                      {t('admin.settings.requireBodyInfo')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {t('admin.settings.requireBodyInfoDesc')}
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={setting.setting_value}
+                          onChange={(e) => handleSettingChange(setting.setting_key, e.target.checked)}
+                        />
+                      }
+                      label={setting.setting_value ? 'Enabled' : 'Disabled'}
+                    />
+                  </Card>
+                ))}
+
                 {/* Other Settings */}
-                {systemSettings.filter(s => s.setting_key !== 'system_language').map((setting) => (
+                {systemSettings.filter(s => s.setting_key !== 'system_language' && s.setting_key !== 'require_user_body_info').map((setting) => (
                   <Card key={setting.id} sx={{ p: 3 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       {setting.description || setting.setting_key}
