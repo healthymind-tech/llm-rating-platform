@@ -204,7 +204,20 @@ export const chatAPI = {
 export const configAPI = {
   getConfigs: async (): Promise<LLMConfig[]> => {
     const response = await api.get('/config');
-    return response.data.configs;
+    // Convert snake_case to camelCase for frontend
+    return response.data.configs.map((config: any) => ({
+      id: config.id,
+      name: config.name,
+      type: config.type,
+      apiKey: config.api_key,
+      endpoint: config.endpoint,
+      model: config.model,
+      temperature: config.temperature,
+      maxTokens: config.max_tokens,
+      systemPrompt: config.system_prompt,
+      repetitionPenalty: config.repetition_penalty,
+      isActive: config.is_active,
+    }));
   },
 
   getActiveConfig: async (): Promise<LLMConfig | null> => {
@@ -226,6 +239,8 @@ export const configAPI = {
       model: configData.model,
       temperature: configData.temperature,
       max_tokens: configData.maxTokens,
+      system_prompt: configData.systemPrompt,
+      repetition_penalty: configData.repetitionPenalty,
       is_active: configData.isActive,
     };
     const response = await api.post('/config', backendData);
@@ -242,6 +257,8 @@ export const configAPI = {
     if (updates.model !== undefined) backendUpdates.model = updates.model;
     if (updates.temperature !== undefined) backendUpdates.temperature = updates.temperature;
     if (updates.maxTokens !== undefined) backendUpdates.max_tokens = updates.maxTokens;
+    if (updates.systemPrompt !== undefined) backendUpdates.system_prompt = updates.systemPrompt;
+    if (updates.repetitionPenalty !== undefined) backendUpdates.repetition_penalty = updates.repetitionPenalty;
     if (updates.isActive !== undefined) backendUpdates.is_active = updates.isActive;
     
     const response = await api.put(`/config/${id}`, backendUpdates);

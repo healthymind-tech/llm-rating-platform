@@ -34,6 +34,8 @@ export interface LLMConfig {
   model: string;
   temperature: number;
   max_tokens: number;
+  system_prompt?: string;
+  repetition_penalty?: number;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;

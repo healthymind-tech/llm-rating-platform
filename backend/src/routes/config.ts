@@ -68,6 +68,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       model,
       temperature,
       max_tokens,
+      system_prompt,
+      repetition_penalty,
       is_active,
     } = req.body;
 
@@ -114,6 +116,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       model,
       temperature: temperature ? parseFloat(temperature) : 0.7,
       max_tokens: max_tokens ? parseInt(max_tokens) : 2048,
+      system_prompt: system_prompt || undefined,
+      repetition_penalty: repetition_penalty ? parseFloat(repetition_penalty) : undefined,
       is_active: is_active || false,
     };
 
@@ -137,6 +141,8 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
       model,
       temperature,
       max_tokens,
+      system_prompt,
+      repetition_penalty,
       is_active,
     } = req.body;
 
@@ -165,6 +171,14 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Max tokens must be a positive integer' });
       }
       updates.max_tokens = tokensNum;
+    }
+    if (system_prompt !== undefined) updates.system_prompt = system_prompt || undefined;
+    if (repetition_penalty !== undefined) {
+      const penaltyNum = parseFloat(repetition_penalty);
+      if (isNaN(penaltyNum) || penaltyNum < 0.1 || penaltyNum > 2.0) {
+        return res.status(400).json({ error: 'Repetition penalty must be a number between 0.1 and 2.0' });
+      }
+      updates.repetition_penalty = penaltyNum;
     }
     if (is_active !== undefined) updates.is_active = is_active;
 

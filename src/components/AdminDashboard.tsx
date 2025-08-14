@@ -103,8 +103,10 @@ export const AdminDashboard: React.FC = () => {
     apiKey: '',
     endpoint: 'https://api.openai.com/v1',
     model: '',
-    temperature: 0.7,
-    maxTokens: 2048,
+    temperature: '',
+    maxTokens: '',
+    systemPrompt: '',
+    repetitionPenalty: '',
     isActive: false,
   });
 
@@ -325,7 +327,12 @@ export const AdminDashboard: React.FC = () => {
           icon={<Edit />}
           label="Edit"
           onClick={() => {
-            setSelectedConfig({...params.row, apiKey: ''});
+            setSelectedConfig({
+              ...params.row, 
+              apiKey: '',
+              systemPrompt: params.row.systemPrompt || '',
+              repetitionPenalty: params.row.repetitionPenalty || 1.0
+            });
             setConfigDialogOpen(true);
           }}
         />,
@@ -376,6 +383,8 @@ export const AdminDashboard: React.FC = () => {
           model: selectedConfig.model,
           temperature: selectedConfig.temperature,
           maxTokens: selectedConfig.maxTokens,
+          systemPrompt: selectedConfig.systemPrompt,
+          repetitionPenalty: selectedConfig.repetitionPenalty,
           isActive: selectedConfig.isActive,
         });
       } else {
@@ -387,6 +396,8 @@ export const AdminDashboard: React.FC = () => {
           model: newConfig.model,
           temperature: newConfig.temperature,
           maxTokens: newConfig.maxTokens,
+          systemPrompt: newConfig.systemPrompt,
+          repetitionPenalty: newConfig.repetitionPenalty,
           isActive: newConfig.isActive,
         });
       }
@@ -401,8 +412,10 @@ export const AdminDashboard: React.FC = () => {
         apiKey: '',
         endpoint: 'https://api.openai.com/v1',
         model: '',
-        temperature: 0.7,
-        maxTokens: 2048,
+        temperature: '',
+        maxTokens: '',
+        systemPrompt: '',
+        repetitionPenalty: '',
         isActive: false,
       });
     } catch (error) {
@@ -920,6 +933,32 @@ export const AdminDashboard: React.FC = () => {
               : setNewConfig({...newConfig, maxTokens: parseInt(e.target.value)})
             }
             margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="System Prompt"
+            multiline
+            rows={3}
+            value={selectedConfig?.systemPrompt || newConfig.systemPrompt}
+            onChange={(e) => selectedConfig 
+              ? setSelectedConfig({...selectedConfig, systemPrompt: e.target.value})
+              : setNewConfig({...newConfig, systemPrompt: e.target.value})
+            }
+            margin="normal"
+            helperText="Optional system prompt to set the AI's behavior and context"
+          />
+          <TextField
+            fullWidth
+            label="Repetition Penalty"
+            type="number"
+            inputProps={{ min: 0.1, max: 2.0, step: 0.1 }}
+            value={selectedConfig?.repetitionPenalty || newConfig.repetitionPenalty}
+            onChange={(e) => selectedConfig 
+              ? setSelectedConfig({...selectedConfig, repetitionPenalty: parseFloat(e.target.value)})
+              : setNewConfig({...newConfig, repetitionPenalty: parseFloat(e.target.value)})
+            }
+            margin="normal"
+            helperText="Controls repetition in responses (1.0 = no penalty, higher values reduce repetition)"
           />
           <FormControlLabel
             control={

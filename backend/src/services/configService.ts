@@ -41,8 +41,8 @@ export class ConfigService {
 
       const result = await pool.query(
         `INSERT INTO llm_configs 
-         (id, name, type, api_key, endpoint, model, temperature, max_tokens, is_active) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_active) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
          RETURNING *`,
         [
           configId,
@@ -53,6 +53,8 @@ export class ConfigService {
           configData.model,
           configData.temperature,
           configData.max_tokens,
+          configData.system_prompt,
+          configData.repetition_penalty,
           configData.is_active,
         ]
       );

@@ -34,6 +34,8 @@ export interface LLMConfig {
   model: string;
   temperature: number;
   maxTokens: number;
+  systemPrompt?: string;
+  repetitionPenalty?: number;
   isActive: boolean;
 }
 
