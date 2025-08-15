@@ -35,6 +35,12 @@ import { SystemMetrics } from './SystemMetrics';
 import { ChatHistoryViewer } from './ChatHistoryViewer';
 import { responsive } from '../theme/responsive';
 
+interface LLMConfigForm extends Omit<LLMConfig, 'temperature' | 'maxTokens' | 'repetitionPenalty'> {
+  temperature: string | number;
+  maxTokens: string | number;
+  repetitionPenalty: string | number;
+}
+
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -84,7 +90,7 @@ export const AdminDashboard: React.FC = () => {
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedConfig, setSelectedConfig] = useState<LLMConfig | null>(null);
+  const [selectedConfig, setSelectedConfig] = useState<LLMConfigForm | null>(null);
 
   const [newUser, setNewUser] = useState({
     username: '',
@@ -103,10 +109,10 @@ export const AdminDashboard: React.FC = () => {
     apiKey: '',
     endpoint: 'https://api.openai.com/v1',
     model: '',
-    temperature: '',
-    maxTokens: '',
+    temperature: '0.7',
+    maxTokens: '1000',
     systemPrompt: '',
-    repetitionPenalty: '',
+    repetitionPenalty: '1.0',
     isActive: false,
   });
 
@@ -175,13 +181,19 @@ export const AdminDashboard: React.FC = () => {
   const fetchModels = async () => {
     const currentConfig = selectedConfig || newConfig;
     
-    if (currentConfig.type !== 'openai' || !currentConfig.apiKey) {
+    if (currentConfig.type !== 'openai') {
+      return;
+    }
+
+    // Allow fetching models without API key for local services
+    if (!currentConfig.apiKey && !currentConfig.endpoint) {
+      alert('Please provide either an API key (for OpenAI/compatible APIs) or an endpoint URL (for local services) to fetch models');
       return;
     }
 
     setFetchingModels(true);
     try {
-      const models = await configAPI.fetchModels(currentConfig.apiKey, currentConfig.endpoint);
+      const models = await configAPI.fetchModels(currentConfig.apiKey || '', currentConfig.endpoint);
       setAvailableModels(models);
     } catch (error: any) {
       console.error('Failed to fetch models:', error);
@@ -215,8 +227,8 @@ export const AdminDashboard: React.FC = () => {
         api_key: currentConfig.apiKey,
         endpoint: currentConfig.endpoint,
         model: currentConfig.model,
-        temperature: currentConfig.temperature,
-        max_tokens: currentConfig.maxTokens,
+        temperature: typeof currentConfig.temperature === 'string' ? parseFloat(currentConfig.temperature) : currentConfig.temperature,
+        max_tokens: typeof currentConfig.maxTokens === 'string' ? parseInt(currentConfig.maxTokens) : currentConfig.maxTokens,
       });
       
       setTestResult({
@@ -331,7 +343,9 @@ export const AdminDashboard: React.FC = () => {
               ...params.row, 
               apiKey: '',
               systemPrompt: params.row.systemPrompt || '',
-              repetitionPenalty: params.row.repetitionPenalty || 1.0
+              temperature: params.row.temperature?.toString() || '0.7',
+              maxTokens: params.row.maxTokens?.toString() || '1000',
+              repetitionPenalty: params.row.repetitionPenalty?.toString() || '1.0'
             });
             setConfigDialogOpen(true);
           }}
@@ -381,10 +395,10 @@ export const AdminDashboard: React.FC = () => {
           apiKey: selectedConfig.apiKey,
           endpoint: selectedConfig.endpoint,
           model: selectedConfig.model,
-          temperature: selectedConfig.temperature,
-          maxTokens: selectedConfig.maxTokens,
+          temperature: typeof selectedConfig.temperature === 'string' ? parseFloat(selectedConfig.temperature) : selectedConfig.temperature,
+          maxTokens: typeof selectedConfig.maxTokens === 'string' ? parseInt(selectedConfig.maxTokens) : selectedConfig.maxTokens,
           systemPrompt: selectedConfig.systemPrompt,
-          repetitionPenalty: selectedConfig.repetitionPenalty,
+          repetitionPenalty: typeof selectedConfig.repetitionPenalty === 'string' ? parseFloat(selectedConfig.repetitionPenalty) : selectedConfig.repetitionPenalty,
           isActive: selectedConfig.isActive,
         });
       } else {
@@ -394,10 +408,10 @@ export const AdminDashboard: React.FC = () => {
           apiKey: newConfig.apiKey,
           endpoint: newConfig.endpoint,
           model: newConfig.model,
-          temperature: newConfig.temperature,
-          maxTokens: newConfig.maxTokens,
+          temperature: typeof newConfig.temperature === 'string' && newConfig.temperature !== '' ? parseFloat(newConfig.temperature) : 0.7,
+          maxTokens: typeof newConfig.maxTokens === 'string' && newConfig.maxTokens !== '' ? parseInt(newConfig.maxTokens) : 1000,
           systemPrompt: newConfig.systemPrompt,
-          repetitionPenalty: newConfig.repetitionPenalty,
+          repetitionPenalty: typeof newConfig.repetitionPenalty === 'string' && newConfig.repetitionPenalty !== '' ? parseFloat(newConfig.repetitionPenalty) : 1.0,
           isActive: newConfig.isActive,
         });
       }
@@ -412,10 +426,10 @@ export const AdminDashboard: React.FC = () => {
         apiKey: '',
         endpoint: 'https://api.openai.com/v1',
         model: '',
-        temperature: '',
-        maxTokens: '',
+        temperature: '0.7',
+        maxTokens: '1000',
         systemPrompt: '',
-        repetitionPenalty: '',
+        repetitionPenalty: '1.0',
         isActive: false,
       });
     } catch (error) {
@@ -857,13 +871,13 @@ export const AdminDashboard: React.FC = () => {
                 <Button
                   variant="outlined"
                   onClick={fetchModels}
-                  disabled={fetchingModels || !(selectedConfig?.apiKey || newConfig.apiKey)}
+                  disabled={fetchingModels || !((selectedConfig?.apiKey || newConfig.apiKey) || (selectedConfig?.endpoint || newConfig.endpoint))}
                   startIcon={fetchingModels ? <CircularProgress size={20} /> : null}
                 >
                   {fetchingModels ? 'Fetching...' : 'Fetch Models'}
                 </Button>
                 <Typography variant="body2" color="textSecondary">
-                  Click to load available models from API
+                  Click to load available models (requires API key or local endpoint)
                 </Typography>
               </Box>
               
@@ -916,10 +930,10 @@ export const AdminDashboard: React.FC = () => {
             label="Temperature"
             type="number"
             inputProps={{ min: 0, max: 2, step: 0.1 }}
-            value={selectedConfig?.temperature || newConfig.temperature}
+            value={selectedConfig?.temperature?.toString() || newConfig.temperature}
             onChange={(e) => selectedConfig 
-              ? setSelectedConfig({...selectedConfig, temperature: parseFloat(e.target.value)})
-              : setNewConfig({...newConfig, temperature: parseFloat(e.target.value)})
+              ? setSelectedConfig({...selectedConfig, temperature: e.target.value})
+              : setNewConfig({...newConfig, temperature: e.target.value})
             }
             margin="normal"
           />
@@ -927,10 +941,10 @@ export const AdminDashboard: React.FC = () => {
             fullWidth
             label="Max Tokens"
             type="number"
-            value={selectedConfig?.maxTokens || newConfig.maxTokens}
+            value={selectedConfig?.maxTokens?.toString() || newConfig.maxTokens}
             onChange={(e) => selectedConfig 
-              ? setSelectedConfig({...selectedConfig, maxTokens: parseInt(e.target.value)})
-              : setNewConfig({...newConfig, maxTokens: parseInt(e.target.value)})
+              ? setSelectedConfig({...selectedConfig, maxTokens: e.target.value})
+              : setNewConfig({...newConfig, maxTokens: e.target.value})
             }
             margin="normal"
           />
@@ -952,10 +966,10 @@ export const AdminDashboard: React.FC = () => {
             label="Repetition Penalty"
             type="number"
             inputProps={{ min: 0.1, max: 2.0, step: 0.1 }}
-            value={selectedConfig?.repetitionPenalty || newConfig.repetitionPenalty}
+            value={selectedConfig?.repetitionPenalty?.toString() || newConfig.repetitionPenalty}
             onChange={(e) => selectedConfig 
-              ? setSelectedConfig({...selectedConfig, repetitionPenalty: parseFloat(e.target.value)})
-              : setNewConfig({...newConfig, repetitionPenalty: parseFloat(e.target.value)})
+              ? setSelectedConfig({...selectedConfig, repetitionPenalty: e.target.value})
+              : setNewConfig({...newConfig, repetitionPenalty: e.target.value})
             }
             margin="normal"
             helperText="Controls repetition in responses (1.0 = no penalty, higher values reduce repetition)"

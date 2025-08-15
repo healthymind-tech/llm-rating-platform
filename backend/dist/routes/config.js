@@ -58,7 +58,7 @@ router.get('/:id', auth_1.authenticateToken, auth_1.requireAdmin, async (req, re
 // Create new configuration (admin only)
 router.post('/', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res) => {
     try {
-        const { name, type, api_key, endpoint, model, temperature, max_tokens, is_active, } = req.body;
+        const { name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_active, } = req.body;
         // Validation
         if (!name || !type || !model) {
             return res.status(400).json({ error: 'Name, type, and model are required' });
@@ -66,9 +66,10 @@ router.post('/', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res)
         if (!['openai', 'ollama'].includes(type)) {
             return res.status(400).json({ error: 'Type must be either "openai" or "ollama"' });
         }
-        if (type === 'openai' && !api_key) {
-            return res.status(400).json({ error: 'API key is required for OpenAI configurations' });
-        }
+        // API key is now optional for local services
+        // if (type === 'openai' && !api_key) {
+        //   return res.status(400).json({ error: 'API key is required for OpenAI configurations' });
+        // }
         if (type === 'openai' && !endpoint) {
             return res.status(400).json({ error: 'API endpoint is required for OpenAI configurations' });
         }
@@ -95,6 +96,8 @@ router.post('/', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res)
             model,
             temperature: temperature ? parseFloat(temperature) : 0.7,
             max_tokens: max_tokens ? parseInt(max_tokens) : 2048,
+            system_prompt: system_prompt || undefined,
+            repetition_penalty: repetition_penalty ? parseFloat(repetition_penalty) : undefined,
             is_active: is_active || false,
         };
         const config = await configService_1.ConfigService.createConfig(configData);
@@ -109,7 +112,7 @@ router.post('/', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res)
 router.put('/:id', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, type, api_key, endpoint, model, temperature, max_tokens, is_active, } = req.body;
+        const { name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_active, } = req.body;
         const updates = {};
         if (name !== undefined)
             updates.name = name;
@@ -138,6 +141,15 @@ router.put('/:id', auth_1.authenticateToken, auth_1.requireAdmin, async (req, re
                 return res.status(400).json({ error: 'Max tokens must be a positive integer' });
             }
             updates.max_tokens = tokensNum;
+        }
+        if (system_prompt !== undefined)
+            updates.system_prompt = system_prompt || undefined;
+        if (repetition_penalty !== undefined) {
+            const penaltyNum = parseFloat(repetition_penalty);
+            if (isNaN(penaltyNum) || penaltyNum < 0.1 || penaltyNum > 2.0) {
+                return res.status(400).json({ error: 'Repetition penalty must be a number between 0.1 and 2.0' });
+            }
+            updates.repetition_penalty = penaltyNum;
         }
         if (is_active !== undefined)
             updates.is_active = is_active;
@@ -180,11 +192,15 @@ router.delete('/:id', auth_1.authenticateToken, auth_1.requireAdmin, async (req,
 router.post('/fetch-models', auth_1.authenticateToken, auth_1.requireAdmin, async (req, res) => {
     try {
         const { api_key, endpoint } = req.body;
-        if (!api_key) {
-            return res.status(400).json({ error: 'API key is required' });
+        // If no endpoint is provided and no API key, return an error with guidance
+        if (!endpoint && (!api_key || api_key.trim() === '')) {
+            return res.status(400).json({
+                error: 'Either an API key (for OpenAI/compatible APIs) or an endpoint URL (for local services) is required to fetch models'
+            });
         }
+        // Allow fetching models without API key for local services
         const baseURL = endpoint || 'https://api.openai.com/v1';
-        const models = await configService_1.ConfigService.fetchOpenAIModels(api_key, baseURL);
+        const models = await configService_1.ConfigService.fetchOpenAIModels(api_key || '', baseURL);
         res.json({ models });
     }
     catch (error) {

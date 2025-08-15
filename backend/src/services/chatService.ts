@@ -185,7 +185,7 @@ export class ChatService {
       }
 
       // Build system message with user profile context
-      let systemMessage = 'You are a helpful AI assistant.';
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
       if (userProfileContext) {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }
@@ -270,7 +270,7 @@ export class ChatService {
       }
 
       // Build system message with user profile context
-      let systemMessage = 'You are a helpful AI assistant.';
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
       if (userProfileContext) {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }
@@ -331,7 +331,7 @@ export class ChatService {
       }
 
       // Build system message with user profile context
-      let systemMessage = 'You are a helpful AI assistant.';
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
       if (userProfileContext) {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }
@@ -409,7 +409,7 @@ export class ChatService {
       }
 
       // Build system message with user profile context
-      let systemMessage = 'You are a helpful AI assistant.';
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
       if (userProfileContext) {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }

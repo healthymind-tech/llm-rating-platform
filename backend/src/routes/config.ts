@@ -82,9 +82,10 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Type must be either "openai" or "ollama"' });
     }
 
-    if (type === 'openai' && !api_key) {
-      return res.status(400).json({ error: 'API key is required for OpenAI configurations' });
-    }
+    // API key is now optional for local services
+    // if (type === 'openai' && !api_key) {
+    //   return res.status(400).json({ error: 'API key is required for OpenAI configurations' });
+    // }
 
     if (type === 'openai' && !endpoint) {
       return res.status(400).json({ error: 'API endpoint is required for OpenAI configurations' });
@@ -223,12 +224,16 @@ router.post('/fetch-models', authenticateToken, requireAdmin, async (req, res) =
   try {
     const { api_key, endpoint } = req.body;
 
-    if (!api_key) {
-      return res.status(400).json({ error: 'API key is required' });
+    // If no endpoint is provided and no API key, return an error with guidance
+    if (!endpoint && (!api_key || api_key.trim() === '')) {
+      return res.status(400).json({ 
+        error: 'Either an API key (for OpenAI/compatible APIs) or an endpoint URL (for local services) is required to fetch models' 
+      });
     }
 
+    // Allow fetching models without API key for local services
     const baseURL = endpoint || 'https://api.openai.com/v1';
-    const models = await ConfigService.fetchOpenAIModels(api_key, baseURL);
+    const models = await ConfigService.fetchOpenAIModels(api_key || '', baseURL);
     
     res.json({ models });
   } catch (error: any) {

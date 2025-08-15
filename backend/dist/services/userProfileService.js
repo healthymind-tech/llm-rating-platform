@@ -5,11 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userProfileService = void 0;
 const database_1 = __importDefault(require("../config/database"));
+const systemSettingsService_1 = require("./systemSettingsService");
 class UserProfileService {
     async getUserProfile(userId) {
         const query = `
       SELECT id, username, email, role, height, weight, body_fat, 
-             lifestyle_habits, profile_completed, created_at, last_login
+             lifestyle_habits, profile_completed, include_body_in_prompts, created_at, last_login
       FROM users 
       WHERE id = $1
     `;
@@ -23,16 +24,16 @@ class UserProfileService {
         }
     }
     async updateUserProfile(userId, profileData) {
-        const { height, weight, body_fat, lifestyle_habits } = profileData;
+        const { height, weight, body_fat, lifestyle_habits, include_body_in_prompts } = profileData;
         const query = `
       UPDATE users 
-      SET height = $2, weight = $3, body_fat = $4, lifestyle_habits = $5
+      SET height = $2, weight = $3, body_fat = $4, lifestyle_habits = $5, include_body_in_prompts = COALESCE($6, include_body_in_prompts)
       WHERE id = $1
       RETURNING id, username, email, role, height, weight, body_fat, 
-                lifestyle_habits, profile_completed, created_at, last_login
+                lifestyle_habits, profile_completed, include_body_in_prompts, created_at, last_login
     `;
         try {
-            const result = await database_1.default.query(query, [userId, height, weight, body_fat, lifestyle_habits]);
+            const result = await database_1.default.query(query, [userId, height, weight, body_fat, lifestyle_habits, include_body_in_prompts]);
             if (result.rows.length === 0) {
                 throw new Error('User not found');
             }
@@ -44,12 +45,17 @@ class UserProfileService {
         }
     }
     async checkProfileCompletion(userId) {
-        const query = `
-      SELECT profile_completed 
-      FROM users 
-      WHERE id = $1
-    `;
         try {
+            // If body info is not required, profile is considered complete by default
+            const isBodyInfoRequired = await this.isBodyInfoRequired();
+            if (!isBodyInfoRequired) {
+                return true;
+            }
+            const query = `
+        SELECT profile_completed 
+        FROM users 
+        WHERE id = $1
+      `;
             const result = await database_1.default.query(query, [userId]);
             return result.rows[0]?.profile_completed || false;
         }
@@ -59,8 +65,17 @@ class UserProfileService {
         }
     }
     async getUserProfileForLLM(userId) {
+        // Check if body information is required/enabled at system level
+        const requireBodyInfo = await systemSettingsService_1.SystemSettingsService.getSettingValue('require_user_body_info');
+        if (!requireBodyInfo) {
+            return '';
+        }
         const profile = await this.getUserProfile(userId);
         if (!profile || !profile.profile_completed) {
+            return '';
+        }
+        // Check user's personal preference for including body info in prompts
+        if (!profile.include_body_in_prompts) {
             return '';
         }
         const profileInfo = [];
@@ -79,6 +94,16 @@ class UserProfileService {
         return profileInfo.length > 0
             ? `User profile: ${profileInfo.join(', ')}`
             : '';
+    }
+    async isBodyInfoRequired() {
+        try {
+            const requireBodyInfo = await systemSettingsService_1.SystemSettingsService.getSettingValue('require_user_body_info');
+            return requireBodyInfo === true;
+        }
+        catch (error) {
+            console.error('Error checking body info requirement:', error);
+            return true; // Default to requiring body info if unable to check
+        }
     }
 }
 exports.userProfileService = new UserProfileService();

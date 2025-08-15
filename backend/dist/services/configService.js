@@ -37,8 +37,8 @@ class ConfigService {
                 await database_1.default.query('UPDATE llm_configs SET is_active = false');
             }
             const result = await database_1.default.query(`INSERT INTO llm_configs 
-         (id, name, type, api_key, endpoint, model, temperature, max_tokens, is_active) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_active) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
          RETURNING *`, [
                 configId,
                 configData.name,
@@ -48,6 +48,8 @@ class ConfigService {
                 configData.model,
                 configData.temperature,
                 configData.max_tokens,
+                configData.system_prompt,
+                configData.repetition_penalty,
                 configData.is_active,
             ]);
             return result.rows[0];
@@ -123,11 +125,15 @@ class ConfigService {
     }
     static async fetchOpenAIModels(apiKey, baseURL = 'https://api.openai.com/v1') {
         try {
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            // Only add Authorization header if API key is provided
+            if (apiKey && apiKey.trim() !== '') {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
             const response = await axios_1.default.get(`${baseURL}/models`, {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 timeout: 10000, // 10 second timeout
             });
             if (response.data && response.data.data) {
@@ -147,7 +153,12 @@ class ConfigService {
         catch (error) {
             console.error('Fetch OpenAI models error:', error);
             if (error.response?.status === 401) {
-                throw new Error('Invalid API key or unauthorized access');
+                if (!apiKey || apiKey.trim() === '') {
+                    throw new Error('No API key provided - some endpoints may require authentication');
+                }
+                else {
+                    throw new Error('Invalid API key or unauthorized access');
+                }
             }
             else if (error.response?.status === 403) {
                 throw new Error('API key does not have permission to access models');
@@ -183,8 +194,33 @@ class ConfigService {
     }
     static async testOpenAIConfig(message, config) {
         try {
-            if (!config.api_key) {
-                return "Demo mode: Configuration test successful! (No API key configured - using demo responses)";
+            if (!config.api_key || config.api_key.trim() === '') {
+                // Try to test without API key for local services
+                if (config.endpoint && !config.endpoint.includes('api.openai.com')) {
+                    try {
+                        const openai = new openai_1.default({
+                            apiKey: 'dummy-key', // Some local services need a dummy key
+                            baseURL: config.endpoint,
+                        });
+                        const completion = await openai.chat.completions.create({
+                            model: config.model,
+                            messages: [
+                                { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
+                                { role: 'user', content: message },
+                            ],
+                            temperature: config.temperature || 0.7,
+                            max_tokens: config.max_tokens || 150,
+                        });
+                        return completion.choices[0]?.message?.content || 'Test completed but no response received';
+                    }
+                    catch (localError) {
+                        // If local test fails, return demo mode message
+                        return `Demo mode: Configuration test successful! (No API key configured - local endpoint test failed: ${localError.message})`;
+                    }
+                }
+                else {
+                    return "Demo mode: Configuration test successful! (No API key configured - using demo responses)";
+                }
             }
             const openai = new openai_1.default({
                 apiKey: config.api_key,

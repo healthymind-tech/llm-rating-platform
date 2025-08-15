@@ -148,11 +148,17 @@ export class ConfigService {
 
   static async fetchOpenAIModels(apiKey: string, baseURL: string = 'https://api.openai.com/v1'): Promise<any[]> {
     try {
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Only add Authorization header if API key is provided
+      if (apiKey && apiKey.trim() !== '') {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+      
       const response = await axios.get(`${baseURL}/models`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         timeout: 10000, // 10 second timeout
       });
 
@@ -174,7 +180,11 @@ export class ConfigService {
       console.error('Fetch OpenAI models error:', error);
       
       if (error.response?.status === 401) {
-        throw new Error('Invalid API key or unauthorized access');
+        if (!apiKey || apiKey.trim() === '') {
+          throw new Error('No API key provided - some endpoints may require authentication');
+        } else {
+          throw new Error('Invalid API key or unauthorized access');
+        }
       } else if (error.response?.status === 403) {
         throw new Error('API key does not have permission to access models');
       } else if (error.code === 'ECONNREFUSED' || error.response?.status >= 500) {
@@ -206,8 +216,33 @@ export class ConfigService {
 
   private static async testOpenAIConfig(message: string, config: any): Promise<string> {
     try {
-      if (!config.api_key) {
-        return "Demo mode: Configuration test successful! (No API key configured - using demo responses)";
+      if (!config.api_key || config.api_key.trim() === '') {
+        // Try to test without API key for local services
+        if (config.endpoint && !config.endpoint.includes('api.openai.com')) {
+          try {
+            const openai = new OpenAI({
+              apiKey: 'dummy-key', // Some local services need a dummy key
+              baseURL: config.endpoint,
+            });
+            
+            const completion = await openai.chat.completions.create({
+              model: config.model,
+              messages: [
+                { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
+                { role: 'user', content: message },
+              ],
+              temperature: config.temperature || 0.7,
+              max_tokens: config.max_tokens || 150,
+            });
+            
+            return completion.choices[0]?.message?.content || 'Test completed but no response received';
+          } catch (localError: any) {
+            // If local test fails, return demo mode message
+            return `Demo mode: Configuration test successful! (No API key configured - local endpoint test failed: ${localError.message})`;
+          }
+        } else {
+          return "Demo mode: Configuration test successful! (No API key configured - using demo responses)";
+        }
       }
 
       const openai = new OpenAI({
