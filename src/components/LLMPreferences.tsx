@@ -150,12 +150,25 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                 label="Preferred LLM"
               >
                 <MenuItem value="">
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Star sx={{ color: 'gold', fontSize: '1rem' }} />
-                    Use System Default
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                    <span>{getDefaultLLM()?.name || 'System Default'}</span>
+                    <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                      <Chip 
+                        label={getDefaultLLM()?.type || 'default'} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem', height: '20px' }}
+                      />
+                      <Chip 
+                        label="Default" 
+                        size="small" 
+                        color="primary"
+                        sx={{ fontSize: '0.7rem', height: '20px' }}
+                      />
+                    </Box>
                   </Box>
                 </MenuItem>
-                {enabledLLMs.map((llm) => (
+                {enabledLLMs.filter(llm => !llm.isDefault).map((llm) => (
                   <MenuItem key={llm.id} value={llm.id}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                       <span>{llm.name}</span>
@@ -166,14 +179,6 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                           variant="outlined"
                           sx={{ fontSize: '0.7rem', height: '20px' }}
                         />
-                        {llm.isDefault && (
-                          <Chip 
-                            label="Default" 
-                            size="small" 
-                            color="primary"
-                            sx={{ fontSize: '0.7rem', height: '20px' }}
-                          />
-                        )}
                       </Box>
                     </Box>
                   </MenuItem>

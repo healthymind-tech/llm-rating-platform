@@ -295,18 +295,14 @@ export const configAPI = {
     }));
   },
 
-  fetchModels: async (apiKey: string, endpoint?: string): Promise<any[]> => {
-    const requestBody: any = {};
+  fetchModels: async (type: string, endpoint: string, apiKey?: string): Promise<any[]> => {
+    const requestBody: any = {
+      type,
+      endpoint
+    };
     
     if (apiKey) {
       requestBody.api_key = apiKey;
-    }
-    
-    if (endpoint) {
-      requestBody.endpoint = endpoint;
-    } else if (apiKey) {
-      // Only default to OpenAI endpoint if we have an API key
-      requestBody.endpoint = 'https://api.openai.com/v1';
     }
     
     const response = await api.post('/config/fetch-models', requestBody);

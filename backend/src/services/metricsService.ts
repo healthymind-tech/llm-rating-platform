@@ -113,6 +113,7 @@ export class MetricsService {
     dateFrom?: string;
     dateTo?: string;
     messageContent?: string;
+    modelName?: string;
   }) {
     try {
       let whereConditions = [];
@@ -161,6 +162,12 @@ export class MetricsService {
         paramIndex++;
       }
 
+      if (filters?.modelName) {
+        whereConditions.push(`LOWER(cm.model_name) LIKE LOWER($${paramIndex})`);
+        queryParams.push(`%${filters.modelName}%`);
+        paramIndex++;
+      }
+
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
       const query = `
@@ -169,6 +176,9 @@ export class MetricsService {
           cm.content,
           cm.role,
           cm.created_at,
+          cm.model_id,
+          cm.model_name,
+          cm.model_type,
           u.username,
           u.email,
           cs.id as session_id,
@@ -216,6 +226,7 @@ export class MetricsService {
     username?: string;
     dateFrom?: string;
     dateTo?: string;
+    modelName?: string;
   }) {
     try {
       let whereConditions = [];
@@ -241,6 +252,12 @@ export class MetricsService {
         paramIndex++;
       }
 
+      if (filters?.modelName) {
+        whereConditions.push(`LOWER(lc.name) LIKE LOWER($${paramIndex})`);
+        queryParams.push(`%${filters.modelName}%`);
+        paramIndex++;
+      }
+
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
       const query = `
@@ -250,13 +267,17 @@ export class MetricsService {
           cs.updated_at,
           u.username,
           u.email,
-          COUNT(cm.id) as message_count,
-          MAX(cm.created_at) as last_message_at
+          COUNT(CASE WHEN cm.role = 'user' THEN 1 END) as conversation_count,
+          MAX(cm.created_at) as last_message_at,
+          lc.name as model_name,
+          lc.type as model_type,
+          lc.id as model_id
         FROM chat_sessions cs
         JOIN users u ON cs.user_id = u.id
         LEFT JOIN chat_messages cm ON cs.id = cm.session_id
+        LEFT JOIN llm_configs lc ON cs.model_id = lc.id
         ${whereClause}
-        GROUP BY cs.id, cs.created_at, cs.updated_at, u.username, u.email
+        GROUP BY cs.id, cs.created_at, cs.updated_at, u.username, u.email, lc.name, lc.type, lc.id
         ORDER BY cs.updated_at DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;
@@ -298,6 +319,9 @@ export class MetricsService {
           cm.content,
           cm.role,
           cm.created_at,
+          cm.model_id,
+          cm.model_name,
+          cm.model_type,
           u.username,
           mr.rating,
           mr.reason,
@@ -321,10 +345,11 @@ export class MetricsService {
     username?: string;
     dateFrom?: string;
     dateTo?: string;
+    modelName?: string;
     format: string;
   }): Promise<string> {
     try {
-      const { username, dateFrom, dateTo, format } = options;
+      const { username, dateFrom, dateTo, modelName, format } = options;
       
       // Build query with filters for sessions
       let whereConditions: string[] = [];
@@ -349,6 +374,12 @@ export class MetricsService {
         paramIndex++;
       }
 
+      if (modelName) {
+        whereConditions.push(`LOWER(lc.name) LIKE LOWER($${paramIndex})`);
+        queryParams.push(`%${modelName}%`);
+        paramIndex++;
+      }
+
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
       // First get all sessions
@@ -359,9 +390,13 @@ export class MetricsService {
           cs.updated_at,
           u.username,
           u.email,
-          u.id as user_id
+          u.id as user_id,
+          lc.name as model_name,
+          lc.type as model_type,
+          lc.model as model_identifier
         FROM chat_sessions cs
         JOIN users u ON cs.user_id = u.id
+        LEFT JOIN llm_configs lc ON cs.model_id = lc.id
         ${whereClause}
         ORDER BY cs.created_at DESC
       `;
@@ -389,13 +424,19 @@ export class MetricsService {
 
           const messagesResult = await pool.query(messagesQuery, [session.id]);
           
+          // Count conversations (user messages only)
+          const conversationCount = messagesResult.rows.filter(msg => msg.role === 'user').length;
+          
           return {
             session_id: session.id,
             session_created_at: session.created_at,
             session_updated_at: session.updated_at,
             username: session.username,
             user_email: session.email,
-            message_count: messagesResult.rows.length,
+            model_name: session.model_name,
+            model_type: session.model_type,
+            model_identifier: session.model_identifier,
+            conversation_count: conversationCount,
             last_message_at: messagesResult.rows.length > 0 
               ? messagesResult.rows[messagesResult.rows.length - 1].created_at 
               : null,
@@ -419,10 +460,11 @@ export class MetricsService {
     dateFrom?: string;
     dateTo?: string;
     messageContent?: string;
+    modelName?: string;
     format: string;
   }): Promise<string> {
     try {
-      const { username, role, rating, dateFrom, dateTo, messageContent, format } = options;
+      const { username, role, rating, dateFrom, dateTo, messageContent, modelName, format } = options;
       
       // Build query with filters
       let whereConditions: string[] = [];
@@ -469,6 +511,12 @@ export class MetricsService {
         paramIndex++;
       }
 
+      if (modelName) {
+        whereConditions.push(`LOWER(cm.model_name) LIKE LOWER($${paramIndex})`);
+        queryParams.push(`%${modelName}%`);
+        paramIndex++;
+      }
+
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
       const query = `
@@ -482,11 +530,17 @@ export class MetricsService {
           cs.id as session_id,
           mr.rating,
           mr.reason,
-          mr.created_at as rating_created_at
+          mr.created_at as rating_created_at,
+          cm.model_name,
+          cm.model_type,
+          lc.name as config_model_name,
+          lc.type as config_model_type,
+          lc.model as config_model_identifier
         FROM chat_messages cm
         JOIN users u ON cm.user_id = u.id
         JOIN chat_sessions cs ON cm.session_id = cs.id
         LEFT JOIN message_ratings mr ON cm.id = mr.message_id
+        LEFT JOIN llm_configs lc ON cs.model_id = lc.id
         ${whereClause}
         ORDER BY cm.created_at DESC
       `;
@@ -585,7 +639,8 @@ export class MetricsService {
     // CSV Headers for flattened structure
     const headers = [
       'session_id', 'session_created_at', 'session_updated_at', 'username', 'user_email', 
-      'message_count', 'last_message_at', 'message_id', 'message_content', 'message_role', 
+      'model_name', 'model_type', 'model_identifier',
+      'conversation_count', 'last_message_at', 'message_id', 'message_content', 'message_role', 
       'message_created_at', 'message_rating', 'message_rating_reason', 'message_rating_created_at'
     ];
     
@@ -602,7 +657,10 @@ export class MetricsService {
             session.session_updated_at,
             session.username,
             session.user_email,
-            session.message_count,
+            session.model_name || '',
+            session.model_type || '',
+            session.model_identifier || '',
+            session.conversation_count,
             session.last_message_at,
             message.id,
             this.escapeCSVValue(message.content),
@@ -622,7 +680,10 @@ export class MetricsService {
           session.session_updated_at,
           session.username,
           session.user_email,
-          session.message_count,
+          session.model_name || '',
+          session.model_type || '',
+          session.model_identifier || '',
+          session.conversation_count,
           session.last_message_at,
           '', '', '', '', '', '', ''
         ];

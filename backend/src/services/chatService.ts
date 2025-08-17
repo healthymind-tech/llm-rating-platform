@@ -10,6 +10,16 @@ import { Response } from 'express';
 export class ChatService {
   static async createChatSession(userId: string): Promise<ChatSession> {
     try {
+      // First verify that the user exists
+      const userCheck = await pool.query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
+      );
+      
+      if (userCheck.rows.length === 0) {
+        throw new Error(`User with ID ${userId} does not exist`);
+      }
+
       const sessionId = uuidv4();
       const result = await pool.query(
         'INSERT INTO chat_sessions (id, user_id) VALUES ($1, $2) RETURNING *',
@@ -64,20 +74,39 @@ export class ChatService {
     role: 'user' | 'assistant', 
     content: string,
     inputTokens: number = 0,
-    outputTokens: number = 0
+    outputTokens: number = 0,
+    modelInfo?: { id: string; name: string; type: string }
   ): Promise<ChatMessage> {
     try {
       const messageId = uuidv4();
-      const result = await pool.query(
-        'INSERT INTO chat_messages (id, session_id, user_id, role, content, input_tokens, output_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-        [messageId, sessionId, userId, role, content, inputTokens, outputTokens]
-      );
+      
+      let query: string;
+      let values: any[];
+      
+      if (modelInfo && role === 'assistant') {
+        // Include model information for assistant messages
+        query = 'INSERT INTO chat_messages (id, session_id, user_id, role, content, input_tokens, output_tokens, model_id, model_name, model_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *';
+        values = [messageId, sessionId, userId, role, content, inputTokens, outputTokens, modelInfo.id, modelInfo.name, modelInfo.type];
+      } else {
+        // Regular message without model info (for user messages)
+        query = 'INSERT INTO chat_messages (id, session_id, user_id, role, content, input_tokens, output_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *';
+        values = [messageId, sessionId, userId, role, content, inputTokens, outputTokens];
+      }
+      
+      const result = await pool.query(query, values);
 
-      // Update session timestamp
-      await pool.query(
-        'UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-        [sessionId]
-      );
+      // Update session timestamp and model info if it's an assistant message
+      if (modelInfo && role === 'assistant') {
+        await pool.query(
+          'UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP, model_id = $2 WHERE id = $1',
+          [sessionId, modelInfo.id]
+        );
+      } else {
+        await pool.query(
+          'UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+          [sessionId]
+        );
+      }
 
       return result.rows[0];
     } catch (error) {
@@ -95,7 +124,7 @@ export class ChatService {
     }
   }
 
-  static async sendMessageToLLM(message: string, sessionId: string, userId: string): Promise<{response: string, tokenUsage?: {inputTokens: number, outputTokens: number, totalTokens: number}}> {
+  static async sendMessageToLLM(message: string, sessionId: string, userId: string): Promise<{response: string, tokenUsage?: {inputTokens: number, outputTokens: number, totalTokens: number}, modelInfo: {id: string, name: string, type: string}}> {
     try {
       const config = await this.getUserLLMConfig(userId);
       
@@ -116,7 +145,14 @@ export class ChatService {
         throw new Error('Unsupported LLM type');
       }
 
-      return result;
+      return {
+        ...result,
+        modelInfo: {
+          id: config.id,
+          name: config.name,
+          type: config.type
+        }
+      };
     } catch (error) {
       console.error('Send message to LLM error:', error);
       throw error;
@@ -129,7 +165,7 @@ export class ChatService {
     sessionId: string, 
     userId: string, 
     res: Response
-  ): Promise<string> {
+  ): Promise<{response: string, modelInfo: {id: string, name: string, type: string}}> {
     try {
       const config = await this.getUserLLMConfig(userId);
       
@@ -150,7 +186,14 @@ export class ChatService {
         throw new Error('Unsupported LLM type');
       }
 
-      return fullResponse;
+      return {
+        response: fullResponse,
+        modelInfo: {
+          id: config.id,
+          name: config.name,
+          type: config.type
+        }
+      };
     } catch (error) {
       console.error('Send message to LLM stream error:', error);
       throw error;
@@ -167,9 +210,10 @@ export class ChatService {
 
       console.log('Using OpenAI API with key:', config.api_key ? 'configured' : 'not configured');
       
+      const baseURL = config.endpoint || 'https://api.openai.com/v1';
       const openai = new OpenAI({
         apiKey: config.api_key,
-        baseURL: config.endpoint || 'https://api.openai.com/v1',
+        baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash for OpenAI client
       });
 
       // Get user profile information for context
@@ -252,9 +296,10 @@ export class ChatService {
 
       console.log('Using OpenAI API with streaming');
       
+      const baseURL = config.endpoint || 'https://api.openai.com/v1';
       const openai = new OpenAI({
         apiKey: config.api_key,
-        baseURL: config.endpoint || 'https://api.openai.com/v1',
+        baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash for OpenAI client
       });
 
       // Get user profile information for context
@@ -344,7 +389,8 @@ export class ChatService {
         { role: 'user', content: message },
       ];
 
-      const response = await axios.post(`${config.endpoint}/api/chat`, {
+      const url = this.buildOllamaUrl(config.endpoint);
+      const response = await axios.post(url, {
         model: config.model,
         messages,
         stream: false,
@@ -352,6 +398,9 @@ export class ChatService {
           temperature: parseFloat(config.temperature as any),
           num_predict: parseInt(config.max_tokens as any),
         },
+      }, {
+        maxRedirects: 0, // Disable redirects to prevent method changing
+        timeout: 30000   // 30 second timeout
       });
 
       const responseContent = response.data.message?.content || 'No response generated';
@@ -422,7 +471,10 @@ export class ChatService {
         { role: 'user', content: message },
       ];
 
-      const response = await axios.post(`${config.endpoint}/api/chat`, {
+      const url = this.buildOllamaUrl(config.endpoint);
+      console.log('Ollama streaming request URL:', url);
+      
+      const response = await axios.post(url, {
         model: config.model,
         messages,
         stream: true,
@@ -431,7 +483,9 @@ export class ChatService {
           num_predict: parseInt(config.max_tokens as any),
         },
       }, {
-        responseType: 'stream'
+        responseType: 'stream',
+        maxRedirects: 0, // Disable redirects to prevent method changing
+        timeout: 30000   // 30 second timeout
       });
 
       let fullResponse = '';
@@ -483,6 +537,20 @@ export class ChatService {
   private static estimateTokens(text: string): number {
     // Simple approximation: 1 token ≈ 4 characters for English text
     return Math.ceil(text.length / 4);
+  }
+
+  private static buildOpenAIUrl(endpoint: string): string {
+    // For OpenAI and OpenAI-compatible APIs
+    // Remove trailing slash and add the chat completions path
+    const cleanEndpoint = endpoint.replace(/\/$/, '');
+    return `${cleanEndpoint}/chat/completions`;
+  }
+
+  private static buildOllamaUrl(endpoint: string): string {
+    // For Ollama APIs
+    // Remove trailing slash and add the Ollama chat path
+    const cleanEndpoint = endpoint.replace(/\/$/, '');
+    return `${cleanEndpoint}/api/chat`;
   }
 
   private static getDemoResponse(message: string): {response: string, tokenUsage: {inputTokens: number, outputTokens: number, totalTokens: number}} {

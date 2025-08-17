@@ -27,6 +27,7 @@ router.get('/chat-history', authenticateToken, requireAdmin, async (req, res) =>
     const dateFrom = req.query.dateFrom as string;
     const dateTo = req.query.dateTo as string;
     const messageContent = req.query.messageContent as string;
+    const modelName = req.query.modelName as string;
 
     const history = await MetricsService.getChatHistory(limit, offset, {
       username,
@@ -34,7 +35,8 @@ router.get('/chat-history', authenticateToken, requireAdmin, async (req, res) =>
       rating,
       dateFrom,
       dateTo,
-      messageContent
+      messageContent,
+      modelName
     });
     res.json(history);
   } catch (error: any) {
@@ -51,11 +53,13 @@ router.get('/chat-sessions', authenticateToken, requireAdmin, async (req, res) =
     const username = req.query.username as string;
     const dateFrom = req.query.dateFrom as string;
     const dateTo = req.query.dateTo as string;
+    const modelName = req.query.modelName as string;
 
     const sessions = await MetricsService.getChatSessionsWithDetails(limit, offset, {
       username,
       dateFrom,
-      dateTo
+      dateTo,
+      modelName
     });
     res.json(sessions);
   } catch (error: any) {
@@ -99,11 +103,13 @@ router.get('/export/sessions', authenticateToken, requireAdmin, async (req, res)
     const username = req.query.username as string;
     const dateFrom = req.query.dateFrom as string;
     const dateTo = req.query.dateTo as string;
+    const modelName = req.query.modelName as string;
 
     const sessions = await MetricsService.exportChatSessions({
       username,
       dateFrom,
       dateTo,
+      modelName,
       format
     });
 
@@ -139,6 +145,7 @@ router.get('/export/messages', authenticateToken, requireAdmin, async (req, res)
     const dateFrom = req.query.dateFrom as string;
     const dateTo = req.query.dateTo as string;
     const messageContent = req.query.messageContent as string;
+    const modelName = req.query.modelName as string;
 
     const messages = await MetricsService.exportChatMessages({
       username,
@@ -147,6 +154,7 @@ router.get('/export/messages', authenticateToken, requireAdmin, async (req, res)
       dateFrom,
       dateTo,
       messageContent,
+      modelName,
       format
     });
 

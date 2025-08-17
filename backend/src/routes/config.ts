@@ -256,21 +256,24 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, 
   }
 });
 
-// Fetch available models from OpenAI-compatible API (admin only)
+// Fetch available models from LLM APIs (admin only)
 router.post('/fetch-models', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { api_key, endpoint } = req.body;
+    const { type, api_key, endpoint } = req.body;
 
-    // If no endpoint is provided and no API key, return an error with guidance
-    if (!endpoint && (!api_key || api_key.trim() === '')) {
-      return res.status(400).json({ 
-        error: 'Either an API key (for OpenAI/compatible APIs) or an endpoint URL (for local services) is required to fetch models' 
-      });
+    if (!type) {
+      return res.status(400).json({ error: 'LLM type (openai/ollama) is required' });
     }
 
-    // Allow fetching models without API key for local services
-    const baseURL = endpoint || 'https://api.openai.com/v1';
-    const models = await ConfigService.fetchOpenAIModels(api_key || '', baseURL);
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint URL is required' });
+    }
+
+    if (type === 'openai' && !api_key && endpoint.includes('api.openai.com')) {
+      return res.status(400).json({ error: 'API key is required for OpenAI' });
+    }
+
+    const models = await ConfigService.fetchModels(type, endpoint, api_key);
     
     res.json({ models });
   } catch (error: any) {
@@ -315,6 +318,32 @@ router.post('/test-config', authenticateToken, requireAdmin, async (req: AuthReq
     });
   } catch (error: any) {
     console.error('Test config error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Ensure default configuration exists (admin only)
+router.post('/ensure-default', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const defaultConfig = await ConfigService.ensureDefaultConfig();
+    
+    if (defaultConfig) {
+      res.json({ 
+        success: true, 
+        config: defaultConfig,
+        message: 'Default configuration ensured successfully!' 
+      });
+    } else {
+      res.status(404).json({ 
+        success: false, 
+        error: 'No LLM configurations available to set as default' 
+      });
+    }
+  } catch (error: any) {
+    console.error('Ensure default config error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 

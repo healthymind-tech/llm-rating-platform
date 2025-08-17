@@ -22,6 +22,7 @@ import {
   Alert,
   Collapse,
   Container,
+  Chip,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -182,19 +183,25 @@ export const AdminDashboard: React.FC = () => {
   const fetchModels = async () => {
     const currentConfig = selectedConfig || newConfig;
     
-    if (currentConfig.type !== 'openai') {
+    if (!currentConfig.type) {
+      alert('Please select an LLM type (OpenAI or Ollama) first');
       return;
     }
 
-    // Allow fetching models without API key for local services
-    if (!currentConfig.apiKey && !currentConfig.endpoint) {
-      alert('Please provide either an API key (for OpenAI/compatible APIs) or an endpoint URL (for local services) to fetch models');
+    if (!currentConfig.endpoint) {
+      alert('Please provide an endpoint URL to fetch models');
+      return;
+    }
+
+    // For OpenAI, require API key if using official OpenAI endpoint
+    if (currentConfig.type === 'openai' && !currentConfig.apiKey && currentConfig.endpoint?.includes('api.openai.com')) {
+      alert('Please provide an API key for OpenAI');
       return;
     }
 
     setFetchingModels(true);
     try {
-      const models = await configAPI.fetchModels(currentConfig.apiKey || '', currentConfig.endpoint);
+      const models = await configAPI.fetchModels(currentConfig.type, currentConfig.endpoint, currentConfig.apiKey);
       setAvailableModels(models);
     } catch (error: any) {
       console.error('Failed to fetch models:', error);
@@ -390,9 +397,10 @@ export const AdminDashboard: React.FC = () => {
               try {
                 await configAPI.deleteConfig(params.row.id);
                 await fetchLLMConfigs();
-              } catch (error) {
+              } catch (error: any) {
                 console.error('Failed to delete config:', error);
-                alert('Failed to delete configuration');
+                // Show the specific error message (API interceptor extracts this to error.message)
+                alert(error.message || 'Failed to delete configuration');
               }
             }
           }}
@@ -863,44 +871,33 @@ export const AdminDashboard: React.FC = () => {
               <MenuItem value="ollama">Ollama</MenuItem>
             </Select>
           </FormControl>
+          <TextField
+            fullWidth
+            label="Endpoint URL"
+            value={selectedConfig?.endpoint || newConfig.endpoint || ((selectedConfig?.type === 'openai' || newConfig.type === 'openai') ? 'https://api.openai.com/v1' : '')}
+            onChange={(e) => selectedConfig 
+              ? setSelectedConfig({...selectedConfig, endpoint: e.target.value})
+              : setNewConfig({...newConfig, endpoint: e.target.value})
+            }
+            margin="normal"
+            helperText={(selectedConfig?.type === 'openai' || newConfig.type === 'openai') 
+              ? "For OpenAI use: https://api.openai.com/v1, for other providers use their compatible endpoint"
+              : "Enter the Ollama server endpoint URL (e.g., http://localhost:11434)"
+            }
+          />
           {(selectedConfig?.type === 'openai' || newConfig.type === 'openai') && (
-            <>
-              <TextField
-                fullWidth
-                label="API Endpoint URL"
-                value={selectedConfig?.endpoint || newConfig.endpoint || 'https://api.openai.com/v1'}
-                onChange={(e) => selectedConfig 
-                  ? setSelectedConfig({...selectedConfig, endpoint: e.target.value})
-                  : setNewConfig({...newConfig, endpoint: e.target.value})
-                }
-                margin="normal"
-                helperText="For OpenAI use: https://api.openai.com/v1, for other providers use their compatible endpoint"
-              />
-              <TextField
-                fullWidth
-                label="API Key"
-                type="password"
-                value={selectedConfig ? (selectedConfig.apiKey ? '••••••••••••••••••••' : '') : newConfig.apiKey}
-                onChange={(e) => selectedConfig 
-                  ? setSelectedConfig({...selectedConfig, apiKey: e.target.value})
-                  : setNewConfig({...newConfig, apiKey: e.target.value})
-                }
-                margin="normal"
-                placeholder={selectedConfig ? "Enter new API key (leave blank to keep current)" : "Enter your API key"}
-                helperText={selectedConfig ? "For security, the current API key is hidden. Enter a new key to update it." : undefined}
-              />
-            </>
-          )}
-          {(selectedConfig?.type === 'ollama' || newConfig.type === 'ollama') && (
             <TextField
               fullWidth
-              label="Endpoint URL"
-              value={selectedConfig?.endpoint || newConfig.endpoint}
+              label="API Key"
+              type="password"
+              value={selectedConfig ? (selectedConfig.apiKey ? '••••••••••••••••••••' : '') : newConfig.apiKey}
               onChange={(e) => selectedConfig 
-                ? setSelectedConfig({...selectedConfig, endpoint: e.target.value})
-                : setNewConfig({...newConfig, endpoint: e.target.value})
+                ? setSelectedConfig({...selectedConfig, apiKey: e.target.value})
+                : setNewConfig({...newConfig, apiKey: e.target.value})
               }
               margin="normal"
+              placeholder={selectedConfig ? "Enter new API key (leave blank to keep current)" : "Enter your API key"}
+              helperText={selectedConfig ? "For security, the current API key is hidden. Enter a new key to update it." : undefined}
             />
           )}
           {(selectedConfig?.type === 'openai' || newConfig.type === 'openai') ? (
@@ -932,7 +929,36 @@ export const AdminDashboard: React.FC = () => {
                   >
                     {availableModels.map((model) => (
                       <MenuItem key={model.id} value={model.id}>
-                        {model.id} ({model.owned_by})
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2" fontWeight="bold">
+                              {model.name || model.id}
+                            </Typography>
+                            {/* Show different info based on model type */}
+                            {model.owned_by ? (
+                              // OpenAI model
+                              <Typography variant="caption" color="textSecondary">
+                                {model.owned_by}
+                              </Typography>
+                            ) : model.family ? (
+                              // Ollama model
+                              <Typography variant="caption" color="textSecondary">
+                                {model.family} • {model.parameter_size} • {model.quantization}
+                                {model.size && ` • ${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
+                              </Typography>
+                            ) : null}
+                          </Box>
+                          {/* Show loading status for Ollama models */}
+                          {model.isLoaded !== undefined && (
+                            <Chip
+                              size="small"
+                              label={model.isLoaded ? "Loaded" : "Available"}
+                              color={model.isLoaded ? "success" : "default"}
+                              variant={model.isLoaded ? "filled" : "outlined"}
+                              sx={{ ml: 1 }}
+                            />
+                          )}
+                        </Box>
                       </MenuItem>
                     ))}
                   </Select>

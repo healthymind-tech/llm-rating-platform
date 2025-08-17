@@ -95,8 +95,11 @@ export const UserDashboard: React.FC = () => {
 
   const handleLLMChange = (llmId: string | null) => {
     setSelectedLLMId(llmId);
-    // Note: The actual LLM selection will be handled by the backend 
-    // based on user preference when sending messages
+    // Reset chat session when model changes
+    setMessages([]);
+    setCurrentSessionId(null);
+    setMessageRatings(new Map());
+    setWaitingForRating(false);
   };
 
   const handleSendMessage = async (content: string) => {
@@ -319,6 +322,7 @@ export const UserDashboard: React.FC = () => {
                   onLLMChange={handleLLMChange}
                   size="small"
                   disabled={loading}
+                  hasChatHistory={messages.length > 0}
                 />
               </Box>
 

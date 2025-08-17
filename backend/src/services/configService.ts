@@ -114,14 +114,93 @@ export class ConfigService {
 
   static async deleteConfig(id: string): Promise<void> {
     try {
+      // First check if we're deleting the default configuration
+      const configToDelete = await pool.query(
+        'SELECT is_default FROM llm_configs WHERE id = $1',
+        [id]
+      );
+      
+      if (configToDelete.rows.length === 0) {
+        throw new Error('Configuration not found');
+      }
+      
+      // Check if this is the last configuration
+      const totalConfigs = await pool.query('SELECT COUNT(*) as count FROM llm_configs');
+      if (parseInt(totalConfigs.rows[0].count) <= 1) {
+        throw new Error('Cannot delete the last LLM configuration. At least one configuration must exist.');
+      }
+      
+      const wasDefault = configToDelete.rows[0].is_default;
+      
+      // Delete the configuration
       const result = await pool.query('DELETE FROM llm_configs WHERE id = $1', [id]);
       
       if (result.rowCount === 0) {
         throw new Error('Configuration not found');
       }
+      
+      // If we deleted the default configuration, automatically set a new default
+      if (wasDefault) {
+        await this.ensureDefaultExists();
+      }
     } catch (error) {
       console.error('Delete config error:', error);
-      throw new Error('Failed to delete configuration');
+      // Re-throw the original error to preserve the specific message
+      throw error;
+    }
+  }
+
+  // Public method to manually trigger default assignment (for admin use)
+  static async ensureDefaultConfig(): Promise<LLMConfig | null> {
+    await this.ensureDefaultExists();
+    return await this.getDefaultConfig();
+  }
+
+  // Ensure there's always a default LLM configuration
+  private static async ensureDefaultExists(): Promise<void> {
+    try {
+      // Check if there's already a default
+      const defaultCheck = await pool.query(
+        'SELECT id FROM llm_configs WHERE is_default = true LIMIT 1'
+      );
+      
+      if (defaultCheck.rows.length > 0) {
+        return; // Default already exists
+      }
+      
+      // Find the first enabled configuration to make default
+      const enabledConfigs = await pool.query(
+        'SELECT id FROM llm_configs WHERE is_enabled = true ORDER BY created_at ASC LIMIT 1'
+      );
+      
+      if (enabledConfigs.rows.length > 0) {
+        // Set the first enabled config as default
+        await pool.query(
+          'UPDATE llm_configs SET is_default = true WHERE id = $1',
+          [enabledConfigs.rows[0].id]
+        );
+        console.log(`Automatically set LLM config ${enabledConfigs.rows[0].id} as new default`);
+        return;
+      }
+      
+      // If no enabled configs exist, find any config to make default and enable it
+      const anyConfigs = await pool.query(
+        'SELECT id FROM llm_configs ORDER BY created_at ASC LIMIT 1'
+      );
+      
+      if (anyConfigs.rows.length > 0) {
+        // Set the first available config as default and enable it
+        await pool.query(
+          'UPDATE llm_configs SET is_default = true, is_enabled = true WHERE id = $1',
+          [anyConfigs.rows[0].id]
+        );
+        console.log(`Automatically set LLM config ${anyConfigs.rows[0].id} as new default and enabled it`);
+        return;
+      }
+      
+      console.warn('No LLM configurations available to set as default');
+    } catch (error) {
+      console.error('Error ensuring default LLM exists:', error);
     }
   }
 
@@ -149,9 +228,21 @@ export class ConfigService {
 
   static async getDefaultConfig(): Promise<LLMConfig | null> {
     try {
-      const result = await pool.query(
+      let result = await pool.query(
         'SELECT * FROM llm_configs WHERE is_default = true LIMIT 1'
       );
+      
+      // If no default found, try to auto-assign one
+      if (result.rows.length === 0) {
+        console.log('No default LLM configuration found, attempting to auto-assign...');
+        await this.ensureDefaultExists();
+        
+        // Try again after auto-assignment
+        result = await pool.query(
+          'SELECT * FROM llm_configs WHERE is_default = true LIMIT 1'
+        );
+      }
+      
       return result.rows.length > 0 ? result.rows[0] : null;
     } catch (error) {
       console.error('Get default config error:', error);
@@ -193,8 +284,88 @@ export class ConfigService {
     }
   }
 
+  static async fetchOllamaModels(endpoint: string): Promise<any[]> {
+    try {
+      // Remove trailing slash and normalize URL
+      const cleanEndpoint = endpoint.replace(/\/$/, '');
+      
+      // Fetch available models (/api/tags)
+      const availableResponse = await axios.get(`${cleanEndpoint}/api/tags`, {
+        timeout: 10000, // 10 second timeout
+      });
+
+      // Fetch loaded models (/api/ps)
+      let loadedModels: any[] = [];
+      try {
+        const loadedResponse = await axios.get(`${cleanEndpoint}/api/ps`, {
+          timeout: 5000, // 5 second timeout for loaded models
+        });
+        loadedModels = loadedResponse.data.models || [];
+      } catch (loadedError) {
+        console.warn('Could not fetch loaded models from Ollama:', loadedError);
+        // Continue without loaded model info
+      }
+
+      if (availableResponse.data && availableResponse.data.models) {
+        // Create a set of loaded model names for quick lookup
+        const loadedModelNames = new Set(loadedModels.map((model: any) => model.name));
+        
+        // Process available models and add loaded status
+        return availableResponse.data.models
+          .map((model: any) => ({
+            id: model.name,
+            name: model.name,
+            model: model.model,
+            size: model.size,
+            modified_at: model.modified_at,
+            digest: model.digest,
+            family: model.details?.family || 'unknown',
+            parameter_size: model.details?.parameter_size || 'unknown',
+            quantization: model.details?.quantization_level || 'unknown',
+            isLoaded: loadedModelNames.has(model.name),
+            format: model.details?.format || 'unknown'
+          }))
+          .sort((a: any, b: any) => {
+            // Sort by loaded status first (loaded models at top), then by name
+            if (a.isLoaded && !b.isLoaded) return -1;
+            if (!a.isLoaded && b.isLoaded) return 1;
+            return a.name.localeCompare(b.name);
+          });
+      }
+
+      return [];
+    } catch (error: any) {
+      console.error('Fetch Ollama models error:', error);
+      
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error('Unable to connect to Ollama - Please check if Ollama is running and the endpoint URL is correct');
+      } else if (error.response?.status === 404) {
+        throw new Error('Ollama API endpoint not found - Please verify the endpoint URL');
+      } else if (error.code === 'ENOTFOUND') {
+        throw new Error('Invalid endpoint URL - Please check the Ollama server address');
+      } else if (error.code === 'ETIMEDOUT') {
+        throw new Error('Request timed out - Ollama server may be unavailable');
+      } else {
+        throw new Error(`Failed to fetch Ollama models: ${error.message}`);
+      }
+    }
+  }
+
+  static async fetchModels(type: string, endpoint: string, apiKey?: string): Promise<any[]> {
+    if (type === 'ollama') {
+      return await this.fetchOllamaModels(endpoint);
+    } else if (type === 'openai') {
+      return await this.fetchOpenAIModels(apiKey || '', endpoint);
+    } else {
+      throw new Error(`Unsupported model type: ${type}`);
+    }
+  }
+
   static async fetchOpenAIModels(apiKey: string, baseURL: string = 'https://api.openai.com/v1'): Promise<any[]> {
     try {
+      // Remove trailing slash to prevent double slashes
+      const cleanBaseURL = baseURL.replace(/\/$/, '');
+      
       const headers: any = {
         'Content-Type': 'application/json',
       };
@@ -204,7 +375,7 @@ export class ConfigService {
         headers['Authorization'] = `Bearer ${apiKey}`;
       }
       
-      const response = await axios.get(`${baseURL}/models`, {
+      const response = await axios.get(`${cleanBaseURL}/models`, {
         headers,
         timeout: 10000, // 10 second timeout
       });
@@ -269,7 +440,7 @@ export class ConfigService {
           try {
             const openai = new OpenAI({
               apiKey: 'dummy-key', // Some local services need a dummy key
-              baseURL: config.endpoint,
+              baseURL: config.endpoint.replace(/\/$/, ''), // Remove trailing slash
             });
             
             const completion = await openai.chat.completions.create({
@@ -292,9 +463,10 @@ export class ConfigService {
         }
       }
 
+      const baseURL = config.endpoint || 'https://api.openai.com/v1';
       const openai = new OpenAI({
         apiKey: config.api_key,
-        baseURL: config.endpoint || 'https://api.openai.com/v1',
+        baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash
       });
 
       const completion = await openai.chat.completions.create({

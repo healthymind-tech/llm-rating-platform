@@ -106,12 +106,14 @@ export const ChatHistoryViewer: React.FC = () => {
     dateFrom: '',
     dateTo: '',
     messageContent: '',
+    modelName: '',
   });
 
   const [sessionFilters, setSessionFilters] = useState({
     username: '',
     dateFrom: '',
     dateTo: '',
+    modelName: '',
   });
 
   useEffect(() => {
@@ -198,9 +200,10 @@ export const ChatHistoryViewer: React.FC = () => {
     if (filterType === 'messages') {
       const newFilters = { ...filters, [field]: value };
       
-      // Clear rating if role is changed to 'user' (only assistant messages can be rated)
+      // Clear rating and model name if role is changed to 'user' (only assistant messages can be rated/have models)
       if (field === 'role' && value === 'user') {
         newFilters.rating = '';
+        newFilters.modelName = '';
       }
       
       setFilters(newFilters);
@@ -224,6 +227,7 @@ export const ChatHistoryViewer: React.FC = () => {
         username: '',
         dateFrom: '',
         dateTo: '',
+        modelName: '',
       });
     } else {
       setFilters({
@@ -233,6 +237,7 @@ export const ChatHistoryViewer: React.FC = () => {
         dateFrom: '',
         dateTo: '',
         messageContent: '',
+        modelName: '',
       });
     }
     setPage(1);
@@ -343,6 +348,16 @@ export const ChatHistoryViewer: React.FC = () => {
         <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
           {message.content}
         </Typography>
+        {message.role === 'assistant' && message.model_name && (
+          <Box sx={{ mt: 1, mb: 1 }}>
+            <Chip
+              size="small"
+              label={`${message.model_name} (${message.model_type?.toUpperCase()})`}
+              color="info"
+              variant="outlined"
+            />
+          </Box>
+        )}
         {message.rating && (
           <Box sx={{ mt: 1, mb: 1 }}>
             <Chip
@@ -504,7 +519,7 @@ export const ChatHistoryViewer: React.FC = () => {
                   </Typography>
                 </Box>
                 
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 3 }}>
                   <Box>
                     <Autocomplete
                       size="small"
@@ -539,6 +554,21 @@ export const ChatHistoryViewer: React.FC = () => {
                           </Box>
                         </Box>
                       )}
+                    />
+                  </Box>
+                  <Box>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Model Name"
+                      value={sessionFilters.modelName}
+                      onChange={(e) => handleFilterChange('sessions', 'modelName', e.target.value)}
+                      placeholder="Filter by model..."
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2
+                        }
+                      }}
                     />
                   </Box>
                   <Box>
@@ -628,7 +658,8 @@ export const ChatHistoryViewer: React.FC = () => {
                     <TableHead>
                       <TableRow>
                         <TableCell>User</TableCell>
-                        <TableCell>Messages</TableCell>
+                        <TableCell>Conversations</TableCell>
+                        <TableCell>Model</TableCell>
                         <TableCell>Created</TableCell>
                         <TableCell>Last Activity</TableCell>
                         <TableCell>Actions</TableCell>
@@ -650,10 +681,30 @@ export const ChatHistoryViewer: React.FC = () => {
                           <TableCell>
                             <Chip
                               size="small"
-                              label={session.message_count}
+                              label={session.conversation_count}
                               color="primary"
                               variant="outlined"
                             />
+                          </TableCell>
+                          <TableCell>
+                            {session.model_name ? (
+                              <Box>
+                                <Chip
+                                  size="small"
+                                  label={session.model_name}
+                                  color="info"
+                                  variant="outlined"
+                                  sx={{ mb: 0.5 }}
+                                />
+                                <Typography variant="caption" display="block" color="textSecondary">
+                                  {session.model_type?.toUpperCase()}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" color="textSecondary">
+                                No model
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell>{formatDate(session.created_at)}</TableCell>
                           <TableCell>
@@ -665,7 +716,7 @@ export const ChatHistoryViewer: React.FC = () => {
                             <IconButton
                               size="small"
                               onClick={() => handleViewSession(session)}
-                              disabled={session.message_count === 0}
+                              disabled={session.conversation_count === 0}
                             >
                               <Visibility />
                             </IconButton>
@@ -782,6 +833,22 @@ export const ChatHistoryViewer: React.FC = () => {
                     </FormControl>
                   </Box>
                   <Box sx={{ flex: '1 1 150px', minWidth: '150px' }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Model Name"
+                      value={filters.modelName}
+                      onChange={(e) => handleFilterChange('messages', 'modelName', e.target.value)}
+                      placeholder="Filter by model..."
+                      disabled={!!filters.role && filters.role !== 'assistant'}
+                    />
+                    {!!filters.role && filters.role !== 'assistant' && (
+                      <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                        Only assistant messages have model info
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ flex: '1 1 150px', minWidth: '150px' }}>
                     <FormControl fullWidth size="small" disabled={!!filters.role && filters.role !== 'assistant'}>
                       <InputLabel>Assistant Rating</InputLabel>
                       <Select
@@ -865,6 +932,7 @@ export const ChatHistoryViewer: React.FC = () => {
                       <TableRow>
                         <TableCell>User</TableCell>
                         <TableCell>Role</TableCell>
+                        <TableCell>Model</TableCell>
                         <TableCell>Message</TableCell>
                         <TableCell>Rating</TableCell>
                         <TableCell>Timestamp</TableCell>
@@ -885,6 +953,26 @@ export const ChatHistoryViewer: React.FC = () => {
                               color={message.role === 'user' ? 'primary' : 'secondary'}
                               icon={message.role === 'user' ? <Person /> : <SmartToy />}
                             />
+                          </TableCell>
+                          <TableCell>
+                            {message.role === 'assistant' && message.model_name ? (
+                              <Box>
+                                <Chip
+                                  size="small"
+                                  label={message.model_name}
+                                  color="info"
+                                  variant="outlined"
+                                  sx={{ mb: 0.5 }}
+                                />
+                                <Typography variant="caption" display="block" color="textSecondary">
+                                  {message.model_type?.toUpperCase()}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" color="textSecondary">
+                                -
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Typography
@@ -981,6 +1069,9 @@ export const ChatHistoryViewer: React.FC = () => {
             </Typography>
             <Typography variant="caption" sx={{ opacity: 0.9 }}>
               {selectedSession && formatDate(selectedSession.created_at)}
+              {selectedSession?.model_name && (
+                <> • Model: {selectedSession.model_name} ({selectedSession.model_type?.toUpperCase()})</>
+              )}
             </Typography>
           </Box>
         </Box>

@@ -48,6 +48,7 @@ CREATE TABLE users (
 CREATE TABLE chat_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    model_id UUID REFERENCES llm_configs(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -61,6 +62,9 @@ CREATE TABLE chat_messages (
     content TEXT NOT NULL,
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
+    model_id UUID REFERENCES llm_configs(id),
+    model_name VARCHAR(100),
+    model_type VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -91,7 +95,11 @@ CREATE TABLE session_ratings (
 CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
 CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
 CREATE INDEX idx_chat_messages_created_at ON chat_messages(created_at);
+CREATE INDEX idx_chat_messages_model_id ON chat_messages(model_id);
+CREATE INDEX idx_chat_messages_model_name ON chat_messages(model_name);
+CREATE INDEX idx_chat_messages_model_type ON chat_messages(model_type);
 CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
+CREATE INDEX idx_chat_sessions_model_id ON chat_sessions(model_id);
 CREATE INDEX idx_llm_configs_is_enabled ON llm_configs(is_enabled);
 CREATE INDEX idx_llm_configs_is_default ON llm_configs(is_default);
 CREATE INDEX idx_users_preferred_llm_id ON users(preferred_llm_id);
@@ -200,6 +208,6 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 ('require_user_body_info', 'true', 'boolean', 'Require users to provide body information (height, weight, lifestyle) for LLM context');
 
 -- Insert default LLM configurations
-INSERT INTO llm_configs (name, type, model, temperature, max_tokens, is_enabled, is_default) VALUES
-('GPT-4', 'openai', 'gpt-4', 0.7, 2048, true, true),
-('Llama 2', 'ollama', 'llama2', 0.8, 1024, true, false);
+INSERT INTO llm_configs (name, type, endpoint, model, temperature, max_tokens, is_enabled, is_default) VALUES
+('GPT-4', 'openai', 'https://api.openai.com/v1', 'gpt-4', 0.7, 2048, true, true),
+('Ollama Local', 'ollama', 'http://localhost:11434', 'llama2', 0.8, 2048, true, false);

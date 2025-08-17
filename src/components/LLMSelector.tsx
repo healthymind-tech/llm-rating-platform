@@ -8,8 +8,13 @@ import {
   Chip,
   CircularProgress,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
 } from '@mui/material';
-import { Tune, Star } from '@mui/icons-material';
+import { Tune, Star, Warning } from '@mui/icons-material';
 import { LLMConfig } from '../types';
 import { configAPI, userProfileAPI } from '../services/api';
 
@@ -18,6 +23,7 @@ interface LLMSelectorProps {
   onLLMChange?: (llmId: string | null) => void;
   size?: 'small' | 'medium';
   disabled?: boolean;
+  hasChatHistory?: boolean;
 }
 
 export const LLMSelector: React.FC<LLMSelectorProps> = ({
@@ -25,12 +31,15 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
   onLLMChange,
   size = 'small',
   disabled = false,
+  hasChatHistory = false,
 }) => {
   const [enabledLLMs, setEnabledLLMs] = useState<LLMConfig[]>([]);
   const [userPreference, setUserPreference] = useState<string | null>(null);
   const [currentSelection, setCurrentSelection] = useState<string | null>(selectedLLMId || null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showWarning, setShowWarning] = useState(false);
+  const [pendingLLMId, setPendingLLMId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -65,6 +74,18 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
   };
 
   const handleChange = async (llmId: string | null) => {
+    // Check if there's chat history and the user is switching to a different model
+    if (hasChatHistory && llmId !== currentSelection) {
+      setPendingLLMId(llmId);
+      setShowWarning(true);
+      return;
+    }
+    
+    // No warning needed, proceed with change
+    await confirmModelChange(llmId);
+  };
+
+  const confirmModelChange = async (llmId: string | null) => {
     setCurrentSelection(llmId);
     
     // Save user preference
@@ -79,6 +100,19 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
     if (onLLMChange) {
       onLLMChange(llmId);
     }
+  };
+
+  const handleWarningConfirm = async () => {
+    setShowWarning(false);
+    if (pendingLLMId !== null) {
+      await confirmModelChange(pendingLLMId);
+    }
+    setPendingLLMId(null);
+  };
+
+  const handleWarningCancel = () => {
+    setShowWarning(false);
+    setPendingLLMId(null);
   };
 
   const getDefaultLLM = () => {
@@ -97,7 +131,7 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
     if (currentLLM) {
       return currentLLM.name;
     }
-    return 'Default';
+    return getDefaultLLM()?.name || 'Default';
   };
 
   if (loading) {
@@ -149,12 +183,27 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
           }}
         >
           <MenuItem value="">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Star sx={{ color: 'gold', fontSize: '0.875rem' }} />
-              <Typography variant="inherit">System Default</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+              <Typography variant="inherit" sx={{ flexGrow: 1 }}>
+                {getDefaultLLM()?.name || 'System Default'}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Chip 
+                  label={getDefaultLLM()?.type || 'default'} 
+                  size="small" 
+                  variant="outlined"
+                  sx={{ fontSize: '0.6rem', height: '16px' }}
+                />
+                <Chip 
+                  label="Default" 
+                  size="small" 
+                  color="primary"
+                  sx={{ fontSize: '0.6rem', height: '16px' }}
+                />
+              </Box>
             </Box>
           </MenuItem>
-          {enabledLLMs.map((llm) => (
+          {enabledLLMs.filter(llm => !llm.isDefault).map((llm) => (
             <MenuItem key={llm.id} value={llm.id}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                 <Typography variant="inherit" sx={{ flexGrow: 1 }}>
@@ -167,14 +216,6 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
                     variant="outlined"
                     sx={{ fontSize: '0.6rem', height: '16px' }}
                   />
-                  {llm.isDefault && (
-                    <Chip 
-                      label="Default" 
-                      size="small" 
-                      color="primary"
-                      sx={{ fontSize: '0.6rem', height: '16px' }}
-                    />
-                  )}
                 </Box>
               </Box>
             </MenuItem>
@@ -183,12 +224,12 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
       </FormControl>
       
       {/* Current selection info */}
-      <Tooltip title={`Model: ${getCurrentLLM()?.model || 'Default model'}`}>
+      <Tooltip title={`Model: ${getCurrentLLM()?.model || 'Default model'}${!currentSelection ? ' (System Default)' : ''}`}>
         <Chip
           label={getDisplayName()}
           size={size}
           color="primary"
-          variant="outlined"
+          variant={!currentSelection ? "filled" : "outlined"}
           sx={{
             fontSize: size === 'small' ? '0.75rem' : '0.875rem',
             maxWidth: 120,
@@ -199,6 +240,33 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
           }}
         />
       </Tooltip>
+
+      {/* Warning Dialog */}
+      <Dialog
+        open={showWarning}
+        onClose={handleWarningCancel}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Warning color="warning" />
+          Switch Model Warning
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Switching models will start a new session and your current chat history will be reset. 
+            Are you sure you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleWarningCancel} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleWarningConfirm} color="warning" variant="contained">
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
