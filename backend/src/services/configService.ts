@@ -8,12 +8,24 @@ export class ConfigService {
   static async getAllConfigs(): Promise<LLMConfig[]> {
     try {
       const result = await pool.query(
-        'SELECT * FROM llm_configs ORDER BY created_at DESC'
+        'SELECT * FROM llm_configs ORDER BY is_default DESC, created_at DESC'
       );
       return result.rows;
     } catch (error) {
       console.error('Get all configs error:', error);
       throw new Error('Failed to fetch configurations');
+    }
+  }
+
+  static async getEnabledConfigs(): Promise<LLMConfig[]> {
+    try {
+      const result = await pool.query(
+        'SELECT * FROM llm_configs WHERE is_enabled = true ORDER BY is_default DESC, created_at DESC'
+      );
+      return result.rows;
+    } catch (error) {
+      console.error('Get enabled configs error:', error);
+      throw new Error('Failed to fetch enabled configurations');
     }
   }
 
@@ -34,15 +46,15 @@ export class ConfigService {
     try {
       const configId = uuidv4();
       
-      // If this config is set to active, deactivate all others first
-      if (configData.is_active) {
-        await pool.query('UPDATE llm_configs SET is_active = false');
+      // If this config is set to default, remove default from all others first
+      if (configData.is_default) {
+        await pool.query('UPDATE llm_configs SET is_default = false');
       }
 
       const result = await pool.query(
         `INSERT INTO llm_configs 
-         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_active) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_enabled, is_default) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
          RETURNING *`,
         [
           configId,
@@ -55,7 +67,8 @@ export class ConfigService {
           configData.max_tokens,
           configData.system_prompt,
           configData.repetition_penalty,
-          configData.is_active,
+          configData.is_enabled,
+          configData.is_default,
         ]
       );
 
@@ -71,9 +84,9 @@ export class ConfigService {
 
   static async updateConfig(id: string, updates: Partial<Omit<LLMConfig, 'id' | 'created_at' | 'updated_at'>>): Promise<LLMConfig> {
     try {
-      // If this config is being set to active, deactivate all others first
-      if (updates.is_active) {
-        await pool.query('UPDATE llm_configs SET is_active = false WHERE id != $1', [id]);
+      // If this config is being set to default, remove default from all others first
+      if (updates.is_default) {
+        await pool.query('UPDATE llm_configs SET is_default = false WHERE id != $1', [id]);
       }
 
       const fields = Object.keys(updates);
@@ -112,14 +125,14 @@ export class ConfigService {
     }
   }
 
-  static async setActiveConfig(id: string): Promise<LLMConfig> {
+  static async setDefaultConfig(id: string): Promise<LLMConfig> {
     try {
-      // Deactivate all configs
-      await pool.query('UPDATE llm_configs SET is_active = false');
+      // Remove default from all configs
+      await pool.query('UPDATE llm_configs SET is_default = false');
       
-      // Activate the specified config
+      // Set the specified config as default
       const result = await pool.query(
-        'UPDATE llm_configs SET is_active = true WHERE id = $1 RETURNING *',
+        'UPDATE llm_configs SET is_default = true WHERE id = $1 RETURNING *',
         [id]
       );
 
@@ -129,20 +142,54 @@ export class ConfigService {
 
       return result.rows[0];
     } catch (error) {
-      console.error('Set active config error:', error);
-      throw new Error('Failed to set active configuration');
+      console.error('Set default config error:', error);
+      throw new Error('Failed to set default configuration');
     }
   }
 
-  static async getActiveConfig(): Promise<LLMConfig | null> {
+  static async getDefaultConfig(): Promise<LLMConfig | null> {
     try {
       const result = await pool.query(
-        'SELECT * FROM llm_configs WHERE is_active = true LIMIT 1'
+        'SELECT * FROM llm_configs WHERE is_default = true LIMIT 1'
       );
       return result.rows.length > 0 ? result.rows[0] : null;
     } catch (error) {
-      console.error('Get active config error:', error);
-      throw new Error('Failed to get active configuration');
+      console.error('Get default config error:', error);
+      throw new Error('Failed to get default configuration');
+    }
+  }
+
+  static async getUserLLMConfig(userId: string): Promise<LLMConfig | null> {
+    try {
+      // First, try to get the user's preferred LLM
+      const userResult = await pool.query(
+        'SELECT preferred_llm_id FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error('User not found');
+      }
+
+      const preferredLlmId = userResult.rows[0].preferred_llm_id;
+
+      if (preferredLlmId) {
+        // Check if the preferred LLM is still enabled
+        const preferredResult = await pool.query(
+          'SELECT * FROM llm_configs WHERE id = $1 AND is_enabled = true',
+          [preferredLlmId]
+        );
+
+        if (preferredResult.rows.length > 0) {
+          return preferredResult.rows[0];
+        }
+      }
+
+      // Fall back to default LLM
+      return await this.getDefaultConfig();
+    } catch (error) {
+      console.error('Get user LLM config error:', error);
+      throw new Error('Failed to get user LLM configuration');
     }
   }
 

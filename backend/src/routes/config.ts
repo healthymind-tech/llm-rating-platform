@@ -15,27 +15,59 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// Get active configuration (authenticated users)
-router.get('/active', authenticateToken, async (req, res) => {
+// Get enabled configurations (authenticated users)
+router.get('/enabled', authenticateToken, async (req, res) => {
   try {
-    const config = await ConfigService.getActiveConfig();
+    const configs = await ConfigService.getEnabledConfigs();
     
-    if (!config) {
-      return res.status(404).json({ error: 'No active configuration found' });
+    if (configs.length === 0) {
+      return res.status(404).json({ error: 'No enabled configurations found' });
     }
 
     // Don't expose sensitive information to non-admin users
+    const safeConfigs = configs.map(config => ({
+      id: config.id,
+      name: config.name,
+      type: config.type,
+      model: config.model,
+      is_enabled: config.is_enabled,
+      is_default: config.is_default,
+    }));
+
+    res.json({ configs: safeConfigs });
+  } catch (error: any) {
+    console.error('Get enabled configs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user's LLM configuration (authenticated users)
+router.get('/user-config', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const config = await ConfigService.getUserLLMConfig(userId);
+    
+    if (!config) {
+      return res.status(404).json({ error: 'No LLM configuration found for user' });
+    }
+
+    // Don't expose sensitive information
     const safeConfig = {
       id: config.id,
       name: config.name,
       type: config.type,
       model: config.model,
-      is_active: config.is_active,
+      is_enabled: config.is_enabled,
+      is_default: config.is_default,
     };
 
     res.json({ config: safeConfig });
   } catch (error: any) {
-    console.error('Get active config error:', error);
+    console.error('Get user config error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -70,7 +102,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       max_tokens,
       system_prompt,
       repetition_penalty,
-      is_active,
+      is_enabled,
+      is_default,
     } = req.body;
 
     // Validation
@@ -119,7 +152,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       max_tokens: max_tokens ? parseInt(max_tokens) : 2048,
       system_prompt: system_prompt || undefined,
       repetition_penalty: repetition_penalty ? parseFloat(repetition_penalty) : undefined,
-      is_active: is_active || false,
+      is_enabled: is_enabled || false,
+      is_default: is_default || false,
     };
 
     const config = await ConfigService.createConfig(configData);
@@ -144,7 +178,8 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
       max_tokens,
       system_prompt,
       repetition_penalty,
-      is_active,
+      is_enabled,
+      is_default,
     } = req.body;
 
     const updates: any = {};
@@ -181,7 +216,8 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
       }
       updates.repetition_penalty = penaltyNum;
     }
-    if (is_active !== undefined) updates.is_active = is_active;
+    if (is_enabled !== undefined) updates.is_enabled = is_enabled;
+    if (is_default !== undefined) updates.is_default = is_default;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No valid updates provided' });
@@ -195,14 +231,14 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// Set active configuration (admin only)
-router.put('/:id/activate', authenticateToken, requireAdmin, async (req, res) => {
+// Set default configuration (admin only)
+router.put('/:id/set-default', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const config = await ConfigService.setActiveConfig(id);
+    const config = await ConfigService.setDefaultConfig(id);
     res.json({ config });
   } catch (error: any) {
-    console.error('Set active config error:', error);
+    console.error('Set default config error:', error);
     res.status(400).json({ error: error.message });
   }
 });

@@ -6,6 +6,7 @@ export interface User {
   email: string;
   password_hash: string;
   role: 'admin' | 'user';
+  preferred_llm_id?: string;
   created_at: Date;
   last_login?: Date;
 }
@@ -36,7 +37,8 @@ export interface LLMConfig {
   max_tokens: number;
   system_prompt?: string;
   repetition_penalty?: number;
-  is_active: boolean;
+  is_enabled: boolean;
+  is_default: boolean;
   created_at: Date;
   updated_at: Date;
 }

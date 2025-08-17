@@ -1,5 +1,6 @@
 import express from 'express';
 import { userProfileService } from '../services/userProfileService';
+import { ConfigService } from '../services/configService';
 import { authenticateToken } from '../middleware/auth';
 import { AuthRequest } from '../types';
 
@@ -122,6 +123,48 @@ router.get('/body-info-required', async (req, res) => {
   } catch (error) {
     console.error('Failed to check body info requirement:', error);
     res.status(500).json({ error: 'Failed to check body info requirement' });
+  }
+});
+
+// Get user's LLM preference
+router.get('/llm-preference', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const preferredLlmId = await userProfileService.getUserLLMPreference(userId);
+    
+    res.json({ preferred_llm_id: preferredLlmId });
+  } catch (error) {
+    console.error('Failed to fetch user LLM preference:', error);
+    res.status(500).json({ error: 'Failed to fetch LLM preference' });
+  }
+});
+
+// Update user's LLM preference
+router.put('/llm-preference', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { llm_id } = req.body;
+    
+    // Validate LLM ID if provided
+    if (llm_id !== null && llm_id !== undefined) {
+      // Check if the LLM exists and is enabled
+      const llmConfig = await ConfigService.getConfigById(llm_id);
+      
+      if (!llmConfig) {
+        return res.status(400).json({ error: 'LLM configuration not found' });
+      }
+      
+      if (!llmConfig.is_enabled) {
+        return res.status(400).json({ error: 'Selected LLM is not enabled' });
+      }
+    }
+    
+    await userProfileService.updateUserLLMPreference(userId, llm_id);
+    
+    res.json({ success: true, message: 'LLM preference updated successfully' });
+  } catch (error) {
+    console.error('Failed to update user LLM preference:', error);
+    res.status(500).json({ error: 'Failed to update LLM preference' });
   }
 });
 

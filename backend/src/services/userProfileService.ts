@@ -12,6 +12,7 @@ export interface UserProfile {
   lifestyle_habits?: string;
   profile_completed: boolean;
   include_body_in_prompts: boolean;
+  preferred_llm_id?: string;
   created_at: string;
   last_login?: string;
 }
@@ -22,13 +23,14 @@ export interface UpdateProfileData {
   body_fat?: number;
   lifestyle_habits?: string;
   include_body_in_prompts?: boolean;
+  preferred_llm_id?: string;
 }
 
 class UserProfileService {
   async getUserProfile(userId: string): Promise<UserProfile | null> {
     const query = `
       SELECT id, username, email, role, height, weight, body_fat, 
-             lifestyle_habits, profile_completed, include_body_in_prompts, created_at, last_login
+             lifestyle_habits, profile_completed, include_body_in_prompts, preferred_llm_id, created_at, last_login
       FROM users 
       WHERE id = $1
     `;
@@ -43,18 +45,20 @@ class UserProfileService {
   }
 
   async updateUserProfile(userId: string, profileData: UpdateProfileData): Promise<UserProfile> {
-    const { height, weight, body_fat, lifestyle_habits, include_body_in_prompts } = profileData;
+    const { height, weight, body_fat, lifestyle_habits, include_body_in_prompts, preferred_llm_id } = profileData;
     
     const query = `
       UPDATE users 
-      SET height = $2, weight = $3, body_fat = $4, lifestyle_habits = $5, include_body_in_prompts = COALESCE($6, include_body_in_prompts)
+      SET height = $2, weight = $3, body_fat = $4, lifestyle_habits = $5, 
+          include_body_in_prompts = COALESCE($6, include_body_in_prompts),
+          preferred_llm_id = COALESCE($7, preferred_llm_id)
       WHERE id = $1
       RETURNING id, username, email, role, height, weight, body_fat, 
-                lifestyle_habits, profile_completed, include_body_in_prompts, created_at, last_login
+                lifestyle_habits, profile_completed, include_body_in_prompts, preferred_llm_id, created_at, last_login
     `;
     
     try {
-      const result = await pool.query(query, [userId, height, weight, body_fat, lifestyle_habits, include_body_in_prompts]);
+      const result = await pool.query(query, [userId, height, weight, body_fat, lifestyle_habits, include_body_in_prompts, preferred_llm_id]);
       
       if (result.rows.length === 0) {
         throw new Error('User not found');
@@ -139,6 +143,41 @@ class UserProfileService {
     } catch (error) {
       console.error('Error checking body info requirement:', error);
       return true; // Default to requiring body info if unable to check
+    }
+  }
+
+  async updateUserLLMPreference(userId: string, llmId: string | null): Promise<void> {
+    const query = `
+      UPDATE users 
+      SET preferred_llm_id = $2
+      WHERE id = $1
+    `;
+    
+    try {
+      const result = await pool.query(query, [userId, llmId]);
+      
+      if (result.rowCount === 0) {
+        throw new Error('User not found');
+      }
+    } catch (error) {
+      console.error('Error updating user LLM preference:', error);
+      throw new Error('Failed to update LLM preference');
+    }
+  }
+
+  async getUserLLMPreference(userId: string): Promise<string | null> {
+    const query = `
+      SELECT preferred_llm_id 
+      FROM users 
+      WHERE id = $1
+    `;
+    
+    try {
+      const result = await pool.query(query, [userId]);
+      return result.rows[0]?.preferred_llm_id || null;
+    } catch (error) {
+      console.error('Error fetching user LLM preference:', error);
+      throw new Error('Failed to fetch LLM preference');
     }
   }
 }

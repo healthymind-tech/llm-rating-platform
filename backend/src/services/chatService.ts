@@ -4,6 +4,7 @@ import axios from 'axios';
 import pool from '../config/database';
 import { ChatMessage, ChatSession, LLMConfig } from '../types';
 import { userProfileService } from './userProfileService';
+import { ConfigService } from './configService';
 import { Response } from 'express';
 
 export class ChatService {
@@ -85,24 +86,21 @@ export class ChatService {
     }
   }
 
-  static async getActiveConfig(): Promise<LLMConfig | null> {
+  static async getUserLLMConfig(userId: string): Promise<LLMConfig | null> {
     try {
-      const result = await pool.query(
-        'SELECT * FROM llm_configs WHERE is_active = true LIMIT 1'
-      );
-      return result.rows.length > 0 ? result.rows[0] : null;
+      return await ConfigService.getUserLLMConfig(userId);
     } catch (error) {
-      console.error('Get active config error:', error);
-      throw new Error('Failed to get active configuration');
+      console.error('Get user LLM config error:', error);
+      throw new Error('Failed to get user LLM configuration');
     }
   }
 
   static async sendMessageToLLM(message: string, sessionId: string, userId: string): Promise<{response: string, tokenUsage?: {inputTokens: number, outputTokens: number, totalTokens: number}}> {
     try {
-      const config = await this.getActiveConfig();
+      const config = await this.getUserLLMConfig(userId);
       
       if (!config) {
-        throw new Error('No active LLM configuration found');
+        throw new Error('No LLM configuration found for user');
       }
 
       // Get conversation history
@@ -133,10 +131,10 @@ export class ChatService {
     res: Response
   ): Promise<string> {
     try {
-      const config = await this.getActiveConfig();
+      const config = await this.getUserLLMConfig(userId);
       
       if (!config) {
-        throw new Error('No active LLM configuration found');
+        throw new Error('No LLM configuration found for user');
       }
 
       // Get conversation history

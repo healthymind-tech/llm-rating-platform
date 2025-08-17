@@ -21,6 +21,7 @@ CREATE TABLE users (
     lifestyle_habits TEXT, -- text description
     profile_completed BOOLEAN DEFAULT false,
     include_body_in_prompts BOOLEAN DEFAULT true, -- user preference for including body info in LLM prompts
+    preferred_llm_id UUID REFERENCES llm_configs(id), -- user's preferred LLM, falls back to default if null
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP
 );
@@ -55,7 +56,10 @@ CREATE TABLE llm_configs (
     model VARCHAR(100) NOT NULL,
     temperature DECIMAL(3,2) DEFAULT 0.7 CHECK (temperature >= 0 AND temperature <= 2),
     max_tokens INTEGER DEFAULT 2048 CHECK (max_tokens > 0),
-    is_active BOOLEAN DEFAULT false,
+    system_prompt TEXT,
+    repetition_penalty DECIMAL(3,2),
+    is_enabled BOOLEAN DEFAULT false, -- Admin can enable/disable LLMs
+    is_default BOOLEAN DEFAULT false, -- Default LLM for new users
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -88,7 +92,12 @@ CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
 CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
 CREATE INDEX idx_chat_messages_created_at ON chat_messages(created_at);
 CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
-CREATE INDEX idx_llm_configs_is_active ON llm_configs(is_active);
+CREATE INDEX idx_llm_configs_is_enabled ON llm_configs(is_enabled);
+CREATE INDEX idx_llm_configs_is_default ON llm_configs(is_default);
+CREATE INDEX idx_users_preferred_llm_id ON users(preferred_llm_id);
+
+-- Ensure only one default LLM can exist
+CREATE UNIQUE INDEX idx_llm_configs_single_default ON llm_configs(is_default) WHERE is_default = true;
 CREATE INDEX idx_message_ratings_message_id ON message_ratings(message_id);
 CREATE INDEX idx_message_ratings_user_id ON message_ratings(user_id);
 CREATE INDEX idx_message_ratings_rating ON message_ratings(rating);
@@ -191,6 +200,6 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 ('require_user_body_info', 'true', 'boolean', 'Require users to provide body information (height, weight, lifestyle) for LLM context');
 
 -- Insert default LLM configurations
-INSERT INTO llm_configs (name, type, model, temperature, max_tokens, is_active) VALUES
-('GPT-4', 'openai', 'gpt-4', 0.7, 2048, true),
-('Llama 2', 'ollama', 'llama2', 0.8, 1024, false);
+INSERT INTO llm_configs (name, type, model, temperature, max_tokens, is_enabled, is_default) VALUES
+('GPT-4', 'openai', 'gpt-4', 0.7, 2048, true, true),
+('Llama 2', 'ollama', 'llama2', 0.8, 1024, true, false);
