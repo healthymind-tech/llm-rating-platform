@@ -36,7 +36,8 @@ export interface LLMConfig {
   maxTokens: number;
   systemPrompt?: string;
   repetitionPenalty?: number;
-  isActive: boolean;
+  isEnabled: boolean;
+  isDefault: boolean;
 }
 
 export interface MessageRating {

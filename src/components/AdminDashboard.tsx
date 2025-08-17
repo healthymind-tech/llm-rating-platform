@@ -26,7 +26,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings, Language, Tune } from '@mui/icons-material';
+import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings, Language, Tune, Star } from '@mui/icons-material';
 import { User, LLMConfig, SystemSetting } from '../types';
 import { authAPI, configAPI, systemSettingsAPI } from '../services/api';
 import { useLanguage } from '../hooks/useLanguage';
@@ -113,7 +113,8 @@ export const AdminDashboard: React.FC = () => {
     maxTokens: '1000',
     systemPrompt: '',
     repetitionPenalty: '1.0',
-    isActive: false,
+    isEnabled: false,
+    isDefault: false,
   });
 
   const [availableModels, setAvailableModels] = useState<any[]>([]);
@@ -328,12 +329,27 @@ export const AdminDashboard: React.FC = () => {
     { field: 'model', headerName: 'Model', width: 150 },
     { field: 'temperature', headerName: 'Temperature', width: 120 },
     { field: 'maxTokens', headerName: 'Max Tokens', width: 120 },
-    { field: 'isActive', headerName: 'Active', width: 100, type: 'boolean' },
+    { field: 'isEnabled', headerName: 'Enabled', width: 100, type: 'boolean' },
+    { 
+      field: 'isDefault', 
+      headerName: 'Default', 
+      width: 100, 
+      type: 'boolean',
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center',
+          color: params.value ? 'success.main' : 'text.secondary'
+        }}>
+          {params.value ? '✓ Default' : ''}
+        </Box>
+      )
+    },
     {
       field: 'actions',
       type: 'actions',
       headerName: 'Actions',
-      width: 100,
+      width: 150,
       getActions: (params) => [
         <GridActionsCellItem
           icon={<Edit />}
@@ -351,14 +367,33 @@ export const AdminDashboard: React.FC = () => {
           }}
         />,
         <GridActionsCellItem
+          icon={<Star />}
+          label="Set as Default"
+          disabled={params.row.isDefault || !params.row.isEnabled}
+          onClick={async () => {
+            if (window.confirm('Set this LLM as the default for new users?')) {
+              try {
+                await configAPI.setDefault(params.row.id);
+                await fetchLLMConfigs();
+              } catch (error) {
+                console.error('Failed to set default config:', error);
+                alert('Failed to set as default');
+              }
+            }
+          }}
+        />,
+        <GridActionsCellItem
           icon={<Delete />}
           label="Delete"
           onClick={async () => {
-            try {
-              await configAPI.deleteConfig(params.row.id);
-              await fetchLLMConfigs();
-            } catch (error) {
-              console.error('Failed to delete config:', error);
+            if (window.confirm('Are you sure you want to delete this LLM configuration?')) {
+              try {
+                await configAPI.deleteConfig(params.row.id);
+                await fetchLLMConfigs();
+              } catch (error) {
+                console.error('Failed to delete config:', error);
+                alert('Failed to delete configuration');
+              }
             }
           }}
         />,
@@ -399,7 +434,8 @@ export const AdminDashboard: React.FC = () => {
           maxTokens: typeof selectedConfig.maxTokens === 'string' ? parseInt(selectedConfig.maxTokens) : selectedConfig.maxTokens,
           systemPrompt: selectedConfig.systemPrompt,
           repetitionPenalty: typeof selectedConfig.repetitionPenalty === 'string' ? parseFloat(selectedConfig.repetitionPenalty) : selectedConfig.repetitionPenalty,
-          isActive: selectedConfig.isActive,
+          isEnabled: selectedConfig.isEnabled,
+          isDefault: selectedConfig.isDefault,
         });
       } else {
         await configAPI.createConfig({
@@ -412,7 +448,8 @@ export const AdminDashboard: React.FC = () => {
           maxTokens: typeof newConfig.maxTokens === 'string' && newConfig.maxTokens !== '' ? parseInt(newConfig.maxTokens) : 1000,
           systemPrompt: newConfig.systemPrompt,
           repetitionPenalty: typeof newConfig.repetitionPenalty === 'string' && newConfig.repetitionPenalty !== '' ? parseFloat(newConfig.repetitionPenalty) : 1.0,
-          isActive: newConfig.isActive,
+          isEnabled: newConfig.isEnabled,
+          isDefault: newConfig.isDefault,
         });
       }
       await fetchLLMConfigs();
@@ -430,7 +467,8 @@ export const AdminDashboard: React.FC = () => {
         maxTokens: '1000',
         systemPrompt: '',
         repetitionPenalty: '1.0',
-        isActive: false,
+        isEnabled: false,
+        isDefault: false,
       });
     } catch (error) {
       console.error('Failed to save config:', error);
@@ -974,18 +1012,32 @@ export const AdminDashboard: React.FC = () => {
             margin="normal"
             helperText="Controls repetition in responses (1.0 = no penalty, higher values reduce repetition)"
           />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={selectedConfig?.isActive || newConfig.isActive}
-                onChange={(e) => selectedConfig 
-                  ? setSelectedConfig({...selectedConfig, isActive: e.target.checked})
-                  : setNewConfig({...newConfig, isActive: e.target.checked})
-                }
-              />
-            }
-            label="Active Configuration"
-          />
+          <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={selectedConfig?.isEnabled || newConfig.isEnabled}
+                  onChange={(e) => selectedConfig 
+                    ? setSelectedConfig({...selectedConfig, isEnabled: e.target.checked})
+                    : setNewConfig({...newConfig, isEnabled: e.target.checked})
+                  }
+                />
+              }
+              label="Enable Configuration"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={selectedConfig?.isDefault || newConfig.isDefault}
+                  onChange={(e) => selectedConfig 
+                    ? setSelectedConfig({...selectedConfig, isDefault: e.target.checked})
+                    : setNewConfig({...newConfig, isDefault: e.target.checked})
+                  }
+                />
+              }
+              label="Set as Default"
+            />
+          </Box>
           
           {/* Test Configuration Section */}
           <Box sx={{ 

@@ -12,12 +12,13 @@ import {
   Avatar,
   Chip,
 } from '@mui/material';
-import { ExitToApp, Psychology, Person } from '@mui/icons-material';
+import { ExitToApp, Psychology, Person, Tune } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage } from '../hooks/useLanguage';
 import { userProfileAPI } from '../services/api';
 import { UserProfileForm, ProfileData } from './UserProfileForm';
+import { LLMPreferences } from './LLMPreferences';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   useLanguage(); // This will monitor for language changes
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [showProfileForm, setShowProfileForm] = React.useState(false);
+  const [showLLMPreferences, setShowLLMPreferences] = React.useState(false);
   const [profileLoading, setProfileLoading] = React.useState(false);
   const [userProfile, setUserProfile] = React.useState<any>(null);
 
@@ -58,6 +60,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       setUserProfile(null);
       setShowProfileForm(true);
     }
+  };
+
+  const handleLLMPreferencesClick = () => {
+    handleClose();
+    setShowLLMPreferences(true);
   };
 
   const handleProfileSubmit = async (profileData: ProfileData) => {
@@ -186,10 +193,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </MenuItem>
                 )}
                 {user?.role !== 'admin' && (
-                  <MenuItem onClick={handleProfileClick}>
-                    <Person sx={{ mr: 2 }} />
-                    {t('profile.title')}
-                  </MenuItem>
+                  <>
+                    <MenuItem onClick={handleProfileClick}>
+                      <Person sx={{ mr: 2 }} />
+                      {t('profile.title')}
+                    </MenuItem>
+                    <MenuItem onClick={handleLLMPreferencesClick}>
+                      <Tune sx={{ mr: 2 }} />
+                      LLM Preferences
+                    </MenuItem>
+                  </>
                 )}
                 <MenuItem 
                   onClick={handleLogout}
@@ -228,6 +241,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           body_fat: userProfile.body_fat,
           lifestyle_habits: userProfile.lifestyle_habits
         } : undefined}
+      />
+
+      <LLMPreferences
+        open={showLLMPreferences}
+        onClose={() => setShowLLMPreferences(false)}
       />
     </Box>
   );

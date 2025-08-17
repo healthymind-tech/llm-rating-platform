@@ -216,7 +216,8 @@ export const configAPI = {
       maxTokens: config.max_tokens,
       systemPrompt: config.system_prompt,
       repetitionPenalty: config.repetition_penalty,
-      isActive: config.is_active,
+      isEnabled: config.is_enabled,
+      isDefault: config.is_default,
     }));
   },
 
@@ -241,7 +242,8 @@ export const configAPI = {
       max_tokens: configData.maxTokens,
       system_prompt: configData.systemPrompt,
       repetition_penalty: configData.repetitionPenalty,
-      is_active: configData.isActive,
+      is_enabled: configData.isEnabled,
+      is_default: configData.isDefault,
     };
     const response = await api.post('/config', backendData);
     return response.data.config;
@@ -259,7 +261,8 @@ export const configAPI = {
     if (updates.maxTokens !== undefined) backendUpdates.max_tokens = updates.maxTokens;
     if (updates.systemPrompt !== undefined) backendUpdates.system_prompt = updates.systemPrompt;
     if (updates.repetitionPenalty !== undefined) backendUpdates.repetition_penalty = updates.repetitionPenalty;
-    if (updates.isActive !== undefined) backendUpdates.is_active = updates.isActive;
+    if (updates.isEnabled !== undefined) backendUpdates.is_enabled = updates.isEnabled;
+    if (updates.isDefault !== undefined) backendUpdates.is_default = updates.isDefault;
     
     const response = await api.put(`/config/${id}`, backendUpdates);
     return response.data.config;
@@ -269,9 +272,27 @@ export const configAPI = {
     await api.delete(`/config/${id}`);
   },
 
-  setActiveConfig: async (id: string): Promise<LLMConfig> => {
-    const response = await api.put(`/config/${id}/activate`);
+  setDefault: async (id: string): Promise<LLMConfig> => {
+    const response = await api.put(`/config/${id}/set-default`);
     return response.data.config;
+  },
+
+  getEnabledConfigs: async (): Promise<LLMConfig[]> => {
+    const response = await api.get('/config/enabled');
+    return response.data.configs.map((config: any) => ({
+      id: config.id,
+      name: config.name,
+      type: config.type,
+      apiKey: config.api_key,
+      endpoint: config.endpoint,
+      model: config.model,
+      temperature: config.temperature,
+      maxTokens: config.max_tokens,
+      systemPrompt: config.system_prompt,
+      repetitionPenalty: config.repetition_penalty,
+      isEnabled: config.is_enabled,
+      isDefault: config.is_default,
+    }));
   },
 
   fetchModels: async (apiKey: string, endpoint?: string): Promise<any[]> => {
@@ -511,6 +532,14 @@ export const userProfileAPI = {
 
   isBodyInfoRequired: async (): Promise<{ required: boolean }> => {
     const response = await api.get('/user-profile/body-info-required');
+    return response.data;
+  },
+  getLLMPreference: async (): Promise<{ preferred_llm_id: string | null }> => {
+    const response = await api.get('/user-profile/llm-preference');
+    return response.data;
+  },
+  updateLLMPreference: async (llmId: string | null): Promise<{ success: boolean; message: string }> => {
+    const response = await api.put('/user-profile/llm-preference', { llm_id: llmId });
     return response.data;
   },
 };
