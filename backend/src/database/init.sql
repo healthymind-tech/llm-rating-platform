@@ -8,6 +8,24 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'llm_testing_platform'
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- LLM configurations table (created first to avoid dependency issues)
+CREATE TABLE llm_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('openai', 'ollama')),
+    api_key TEXT,
+    endpoint VARCHAR(255),
+    model VARCHAR(100) NOT NULL,
+    temperature DECIMAL(3,2) DEFAULT 0.7 CHECK (temperature >= 0 AND temperature <= 2),
+    max_tokens INTEGER DEFAULT 2048 CHECK (max_tokens > 0),
+    system_prompt TEXT,
+    repetition_penalty DECIMAL(3,2),
+    is_enabled BOOLEAN DEFAULT false, -- Admin can enable/disable LLMs
+    is_default BOOLEAN DEFAULT false, -- Default LLM for new users
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Users table
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -44,24 +62,6 @@ CREATE TABLE chat_messages (
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- LLM configurations table
-CREATE TABLE llm_configs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) NOT NULL,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('openai', 'ollama')),
-    api_key TEXT,
-    endpoint VARCHAR(255),
-    model VARCHAR(100) NOT NULL,
-    temperature DECIMAL(3,2) DEFAULT 0.7 CHECK (temperature >= 0 AND temperature <= 2),
-    max_tokens INTEGER DEFAULT 2048 CHECK (max_tokens > 0),
-    system_prompt TEXT,
-    repetition_penalty DECIMAL(3,2),
-    is_enabled BOOLEAN DEFAULT false, -- Admin can enable/disable LLMs
-    is_default BOOLEAN DEFAULT false, -- Default LLM for new users
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Message ratings table

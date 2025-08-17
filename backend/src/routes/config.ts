@@ -1,11 +1,12 @@
 import express from 'express';
 import { ConfigService } from '../services/configService';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { AuthRequest } from '../types';
 
 const router = express.Router();
 
 // Get all configurations (admin only)
-router.get('/', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const configs = await ConfigService.getAllConfigs();
     res.json({ configs });
@@ -16,7 +17,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Get enabled configurations (authenticated users)
-router.get('/enabled', authenticateToken, async (req, res) => {
+router.get('/enabled', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const configs = await ConfigService.getEnabledConfigs();
     
@@ -42,7 +43,7 @@ router.get('/enabled', authenticateToken, async (req, res) => {
 });
 
 // Get user's LLM configuration (authenticated users)
-router.get('/user-config', authenticateToken, async (req, res) => {
+router.get('/user-config', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
@@ -73,7 +74,7 @@ router.get('/user-config', authenticateToken, async (req, res) => {
 });
 
 // Get specific configuration (admin only)
-router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const config = await ConfigService.getConfigById(id);
@@ -90,7 +91,7 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Create new configuration (admin only)
-router.post('/', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
       name,
@@ -165,7 +166,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Update configuration (admin only)
-router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const {
@@ -232,7 +233,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Set default configuration (admin only)
-router.put('/:id/set-default', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/:id/set-default', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const config = await ConfigService.setDefaultConfig(id);
@@ -244,7 +245,7 @@ router.put('/:id/set-default', authenticateToken, requireAdmin, async (req, res)
 });
 
 // Delete configuration (admin only)
-router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     await ConfigService.deleteConfig(id);
@@ -256,7 +257,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Fetch available models from OpenAI-compatible API (admin only)
-router.post('/fetch-models', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/fetch-models', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { api_key, endpoint } = req.body;
 
@@ -279,7 +280,7 @@ router.post('/fetch-models', authenticateToken, requireAdmin, async (req, res) =
 });
 
 // Test LLM configuration (admin only)
-router.post('/test-config', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/test-config', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { type, api_key, endpoint, model, temperature, max_tokens } = req.body;
 

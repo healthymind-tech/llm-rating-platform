@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Typography, Card, CardContent, Alert, Container, useTheme, useMediaQuery, IconButton, Tooltip } from '@mui/material';
 import { ChatInterface } from './ChatInterface';
+import { LLMSelector } from './LLMSelector';
 import { ChatMessage, MessageRating } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { chatAPI, messageRatingAPI, userProfileAPI } from '../services/api';
@@ -23,6 +24,7 @@ export const UserDashboard: React.FC = () => {
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [selectedLLMId, setSelectedLLMId] = useState<string | null>(null);
 
   // Check if there's an unrated assistant message
   const hasUnratedAssistantMessage = () => {
@@ -89,6 +91,12 @@ export const UserDashboard: React.FC = () => {
     } finally {
       setProfileLoading(false);
     }
+  };
+
+  const handleLLMChange = (llmId: string | null) => {
+    setSelectedLLMId(llmId);
+    // Note: The actual LLM selection will be handled by the backend 
+    // based on user preference when sending messages
   };
 
   const handleSendMessage = async (content: string) => {
@@ -276,30 +284,51 @@ export const UserDashboard: React.FC = () => {
               alignItems: 'center',
               gap: 2,
               mb: { xs: 1.5, sm: 2 },
-              flexShrink: 0
+              flexShrink: 0,
+              flexWrap: { xs: 'wrap', md: 'nowrap' }
             }}>
-              <Box sx={{
-                width: 6,
-                height: 30,
-                background: theme.custom.gradients.secondary,
-                borderRadius: theme.custom.borderRadius.small
-              }} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontSize: { xs: '1rem', sm: '1.125rem' },
-                  flexGrow: 1
-                }}
-              >
-                {t('chat.title')}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+                <Box sx={{
+                  width: 6,
+                  height: 30,
+                  background: theme.custom.gradients.secondary,
+                  borderRadius: theme.custom.borderRadius.small
+                }} />
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: { xs: '1rem', sm: '1.125rem' }
+                  }}
+                >
+                  {t('chat.title')}
+                </Typography>
+              </Box>
+              
+              {/* LLM Selector */}
+              <Box sx={{ 
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                order: { xs: 3, md: 2 },
+                width: { xs: '100%', md: 'auto' },
+                mt: { xs: 1, md: 0 }
+              }}>
+                <LLMSelector
+                  selectedLLMId={selectedLLMId}
+                  onLLMChange={handleLLMChange}
+                  size="small"
+                  disabled={loading}
+                />
+              </Box>
+
               <Tooltip title={t('profile.title')}>
                 <IconButton
                   onClick={handleProfileClick}
                   size="small"
                   sx={{
                     color: 'primary.main',
+                    order: { xs: 2, md: 3 },
                     '&:hover': {
                       backgroundColor: 'primary.light',
                       color: 'primary.contrastText'
