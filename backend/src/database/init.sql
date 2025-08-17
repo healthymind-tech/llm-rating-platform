@@ -20,6 +20,7 @@ CREATE TABLE users (
     body_fat DECIMAL(5,2), -- percentage (optional)
     lifestyle_habits TEXT, -- text description
     profile_completed BOOLEAN DEFAULT false,
+    include_body_in_prompts BOOLEAN DEFAULT true, -- user preference for including body info in LLM prompts
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP
 );
