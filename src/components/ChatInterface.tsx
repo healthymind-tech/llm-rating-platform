@@ -12,20 +12,28 @@ import {
   useTheme,
   useMediaQuery,
   Fade,
+  IconButton,
+  Tooltip,
+  ImageList,
+  ImageListItem,
+  ImageListItemBar,
 } from '@mui/material';
-import { Send } from '@mui/icons-material';
+import { Send, PhotoCamera, Close } from '@mui/icons-material';
 import { ChatMessage, MessageRating } from '../types';
 import { MessageRatingComponent } from './MessageRating';
 import { useTranslation } from '../hooks/useTranslation';
+import { ImageModal } from './ImageModal';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
-  onSendMessage: (message: string) => Promise<void>;
+  onSendMessage: (message: string, images?: string[]) => Promise<void>;
   loading?: boolean;
   // Rating functionality
   messageRatings?: Map<string, MessageRating>;
   onRateMessage?: (messageId: string, rating: 'like' | 'dislike', reason?: string) => Promise<void>;
   ratingDisabled?: boolean;
+  // Vision support
+  supportsVision?: boolean;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -35,12 +43,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messageRatings,
   onRateMessage,
   ratingDisabled = false,
+  supportsVision = false,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [inputMessage, setInputMessage] = useState('');
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
+  const [isDragging, setIsDragging] = useState(false);
+  const [justDroppedFiles, setJustDroppedFiles] = useState(false);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState('');
+
+
   
   // Debug loading state
   console.log('ChatInterface loading state:', loading);
@@ -53,21 +70,181 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     scrollToBottom();
   }, [messages]);
 
+  // Drag and drop functionality
+  useEffect(() => {
+    // Prevent default browser behavior for all drag events
+    const preventDefaults = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    // Handle drag enter/over - show drag state
+    const handleDragEnter = (e: DragEvent) => {
+      preventDefaults(e);
+      if (supportsVision) {
+        setIsDragging(true);
+      }
+    };
+
+    // Handle drag leave - only hide if truly leaving the window
+    const handleDragLeave = (e: DragEvent) => {
+      preventDefaults(e);
+      // Only hide drag state if leaving the window entirely
+      if (e.clientX === 0 && e.clientY === 0) {
+        setIsDragging(false);
+      }
+    };
+
+    // Handle drop - process files and reset state
+    const handleDrop = (e: DragEvent) => {
+      preventDefaults(e);
+      setIsDragging(false);
+      
+      if (!supportsVision) return;
+      
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      // Check if we have image files before processing
+      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+      if (imageFiles.length === 0) return;
+
+      // Set flag to prevent immediate submission
+      setJustDroppedFiles(true);
+      
+      // Process image files
+      imageFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            const base64 = (event.target.result as string).split(',')[1];
+            setSelectedImages(prev => [...prev, base64]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        setJustDroppedFiles(false);
+      }, 100);
+    };
+
+    // Add event listeners to document
+    document.addEventListener('dragenter', handleDragEnter);
+    document.addEventListener('dragover', preventDefaults);
+    document.addEventListener('dragleave', handleDragLeave);
+    document.addEventListener('drop', handleDrop);
+
+    return () => {
+      document.removeEventListener('dragenter', handleDragEnter);
+      document.removeEventListener('dragover', preventDefaults);
+      document.removeEventListener('dragleave', handleDragLeave);
+      document.removeEventListener('drop', handleDrop);
+    };
+  }, [supportsVision]);
+
+  // Image handling functions
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            const base64 = (e.target.result as string).split(',')[1];
+            setSelectedImages(prev => [...prev, base64]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const handleImagePaste = (event: React.ClipboardEvent) => {
+    const items = event.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              const base64 = (e.target.result as string).split(',')[1];
+              setSelectedImages(prev => [...prev, base64]);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleImageClick = (imageSrc: string) => {
+    setSelectedImageSrc(imageSrc);
+    setImageModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputMessage.trim() || loading) return;
+    if ((!inputMessage.trim() && selectedImages.length === 0) || loading || isDragging || justDroppedFiles) return;
 
-    const message = inputMessage.trim();
+    const message = inputMessage.trim() || "Please analyze these images.";
+    const images = selectedImages.length > 0 ? selectedImages : undefined;
+    
     setInputMessage('');
-    await onSendMessage(message);
+    setSelectedImages([]);
+    
+    try {
+      await onSendMessage(message, images);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // Optionally restore the message and images
+      setInputMessage(message);
+      if (images) {
+        setSelectedImages(images);
+      }
+    }
   };
 
   return (
-    <Box sx={{ 
-      height: '100%',
-      display: 'flex', 
-      flexDirection: 'column'
-    }}>
+    <Box 
+      sx={{ 
+        height: '100%',
+        display: 'flex', 
+        flexDirection: 'column',
+        position: 'relative',
+        ...(isDragging && supportsVision && {
+          '&::after': {
+            content: '"Drop images here to upload"',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.2rem',
+            fontWeight: 'bold',
+            color: 'primary.main',
+            zIndex: 1000,
+            pointerEvents: 'none',
+            border: '2px dashed',
+            borderColor: 'primary.main',
+            borderRadius: 1
+          }
+        })
+      }}
+    >
       <Paper sx={{ 
         flex: 1, 
         overflow: 'auto', 
@@ -182,6 +359,40 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         })
                       }}
                     >
+                      {/* Display images if present */}
+                      {message.images && message.images.length > 0 && (
+                        <Box sx={{ mb: 2 }}>
+                          <ImageList 
+                            cols={Math.min(message.images.length, 3)} 
+                            gap={8}
+                            sx={{ 
+                              maxWidth: 400,
+                              '& .MuiImageListItem-root': {
+                                borderRadius: 1,
+                                overflow: 'hidden'
+                              }
+                            }}
+                          >
+                            {message.images.map((image, imgIndex) => (
+                              <ImageListItem key={imgIndex}>
+                                <img
+                                  src={`data:image/jpeg;base64,${image}`}
+                                  alt={`Uploaded image ${imgIndex + 1}`}
+                                  style={{
+                                    height: 'auto',
+                                    maxHeight: 200,
+                                    maxWidth: '100%',
+                                    objectFit: 'cover',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => handleImageClick(`data:image/jpeg;base64,${image}`)}
+                                />
+                              </ImageListItem>
+                            ))}
+                          </ImageList>
+                        </Box>
+                      )}
+                      
                       <Typography 
                         variant="body1" 
                         sx={{ 
@@ -238,7 +449,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       <Box 
         component="form" 
-        onSubmit={handleSubmit}
+        onSubmit={(e) => {
+          e.preventDefault();
+          // Never auto-submit the form - only handle through button click
+          return false;
+        }}
         sx={{
           p: { xs: 1.5, sm: 2 },
           backgroundColor: 'rgba(99, 102, 241, 0.02)',
@@ -247,24 +462,103 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           flexShrink: 0
         }}
       >
+        {/* Image Preview Area */}
+        {selectedImages.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              Selected Images:
+            </Typography>
+            <ImageList 
+              cols={Math.min(selectedImages.length, isMobile ? 3 : 4)} 
+              gap={8}
+              sx={{ 
+                maxHeight: 120,
+                maxWidth: { xs: 280, sm: 400 },
+                width: 'fit-content',
+                '& .MuiImageListItem-root': {
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  width: { xs: '70px !important', sm: '80px !important' },
+                  height: { xs: '70px !important', sm: '80px !important' }
+                }
+              }}
+            >
+              {selectedImages.map((image, index) => (
+                <ImageListItem key={index}>
+                  <img
+                    src={`data:image/jpeg;base64,${image}`}
+                    alt={`Selected image ${index + 1}`}
+                    style={{
+                      width: isMobile ? '70px' : '80px',
+                      height: isMobile ? '70px' : '80px',
+                      objectFit: 'cover',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleImageClick(`data:image/jpeg;base64,${image}`)}
+                  />
+                  <ImageListItemBar
+                    sx={{ background: 'rgba(0,0,0,0.5)' }}
+                    actionIcon={
+                      <IconButton
+                        sx={{ color: 'white' }}
+                        size="small"
+                        onClick={() => removeImage(index)}
+                      >
+                        <Close fontSize="small" />
+                      </IconButton>
+                    }
+                  />
+                </ImageListItem>
+              ))}
+            </ImageList>
+          </Box>
+        )}
+
         <Box sx={{ 
           display: 'flex', 
           gap: { xs: 1, sm: 1.5 },
           alignItems: 'flex-end'
         }}>
+          {/* Hidden file input */}
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleImageSelect}
+          />
+          
+          {/* Image upload button (only show if vision is supported) */}
+          {supportsVision && (
+            <Tooltip title="Upload Images">
+              <IconButton
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading}
+                sx={{
+                  color: 'primary.main',
+                  '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                }}
+              >
+                <PhotoCamera />
+              </IconButton>
+            </Tooltip>
+          )}
           <TextField
             fullWidth
             multiline
             maxRows={isMobile ? 3 : 4}
-            placeholder={loading ? t('chat.connecting') : t('chat.typeMessage')}
+            placeholder={loading ? t('chat.connecting') : `${t('chat.typeMessage')}${supportsVision ? ' or paste/drag images...' : ''}`}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            disabled={loading}
+            onPaste={supportsVision ? handleImagePaste : undefined}
+            disabled={loading || isDragging || justDroppedFiles}
             variant="outlined"
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: theme.custom.borderRadius.medium,
-                backgroundColor: 'white',
+                backgroundColor: isDragging ? theme.palette.action.hover : 'white',
                 fontSize: { xs: '0.9rem', sm: '1rem' },
                 '&.Mui-focused': {
                   '& .MuiOutlinedInput-notchedOutline': {
@@ -275,16 +569,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !loading && !isDragging && !justDroppedFiles) {
                 e.preventDefault();
                 handleSubmit(e);
               }
             }}
           />
           <Button
-            type="submit"
             variant="contained"
-            disabled={!inputMessage.trim() || loading}
+            onClick={(e) => handleSubmit(e)}
+            disabled={(!inputMessage.trim() && selectedImages.length === 0) || loading || isDragging || justDroppedFiles}
             sx={{ 
               minWidth: { xs: 48, sm: 56 },
               height: { xs: 48, sm: 56 },
@@ -308,6 +602,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </Button>
         </Box>
       </Box>
+      
+      {/* Image Modal */}
+      <ImageModal
+        open={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageSrc={selectedImageSrc}
+        alt="Image"
+      />
     </Box>
   );
 };

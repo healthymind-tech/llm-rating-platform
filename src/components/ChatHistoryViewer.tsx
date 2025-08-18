@@ -57,6 +57,7 @@ import {
   Storage,
 } from '@mui/icons-material';
 import { metricsAPI } from '../services/api';
+import { ImageModal } from './ImageModal';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -97,6 +98,8 @@ export const ChatHistoryViewer: React.FC = () => {
   const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
   const [exportType, setExportType] = useState<'sessions' | 'messages' | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState('');
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -219,6 +222,11 @@ export const ChatHistoryViewer: React.FC = () => {
     } else {
       fetchChatHistory();
     }
+  };
+
+  const handleImageClick = (imageSrc: string) => {
+    setSelectedImageSrc(imageSrc);
+    setImageModalOpen(true);
   };
 
   const clearFilters = () => {
@@ -345,6 +353,43 @@ export const ChatHistoryViewer: React.FC = () => {
         <Typography variant="body2" sx={{ mb: 1 }}>
           <strong>{message.role === 'user' ? 'User' : 'Assistant'}</strong>
         </Typography>
+        {/* Display images if present */}
+        {message.images && message.images.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Box 
+              sx={{ 
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 1,
+                maxWidth: 300
+              }}
+            >
+              {message.images.map((image: string, imgIndex: number) => (
+                <Box
+                  key={imgIndex}
+                  sx={{
+                    borderRadius: 1,
+                    overflow: 'hidden',
+                    maxWidth: 80,
+                    maxHeight: 80
+                  }}
+                >
+                  <img
+                    src={`data:image/jpeg;base64,${image}`}
+                    alt={`Message image ${imgIndex + 1}`}
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      objectFit: 'cover',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleImageClick(`data:image/jpeg;base64,${image}`)}
+                  />
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
         <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
           {message.content}
         </Typography>
@@ -975,6 +1020,42 @@ export const ChatHistoryViewer: React.FC = () => {
                             )}
                           </TableCell>
                           <TableCell>
+                            {/* Display images if present */}
+                            {message.images && message.images.length > 0 && (
+                              <Box sx={{ mb: 1 }}>
+                                <Box 
+                                  sx={{ 
+                                    display: 'flex',
+                                    gap: 0.5,
+                                    mb: 1
+                                  }}
+                                >
+                                  {message.images.map((image: string, imgIndex: number) => (
+                                    <Box
+                                      key={imgIndex}
+                                      sx={{
+                                        borderRadius: 0.5,
+                                        overflow: 'hidden',
+                                        width: 40,
+                                        height: 40
+                                      }}
+                                    >
+                                      <img
+                                        src={`data:image/jpeg;base64,${image}`}
+                                        alt={`Message image ${imgIndex + 1}`}
+                                        style={{
+                                          width: '40px',
+                                          height: '40px',
+                                          objectFit: 'cover',
+                                          cursor: 'pointer'
+                                        }}
+                                        onClick={() => handleImageClick(`data:image/jpeg;base64,${image}`)}
+                                      />
+                                    </Box>
+                                  ))}
+                                </Box>
+                              </Box>
+                            )}
                             <Typography
                               variant="body2"
                               sx={{
@@ -1137,6 +1218,14 @@ export const ChatHistoryViewer: React.FC = () => {
           </ListItemText>
         </MenuItem>
       </Menu>
+      
+      {/* Image Modal */}
+      <ImageModal
+        open={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageSrc={selectedImageSrc}
+        alt="Image"
+      />
     </Box>
   );
 };
