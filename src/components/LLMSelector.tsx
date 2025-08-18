@@ -61,8 +61,10 @@ export const LLMSelector: React.FC<LLMSelectorProps> = ({
       setEnabledLLMs(llmsResponse);
       setUserPreference(preferenceResponse.preferred_llm_id);
       
-      // Set initial selection based on user preference or provided selectedLLMId
-      if (!selectedLLMId) {
+      // Set initial selection: prioritize selectedLLMId prop, then fall back to user preference
+      if (selectedLLMId !== undefined) {
+        setCurrentSelection(selectedLLMId);
+      } else {
         setCurrentSelection(preferenceResponse.preferred_llm_id);
       }
     } catch (error: any) {

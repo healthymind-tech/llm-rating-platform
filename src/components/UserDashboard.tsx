@@ -39,13 +39,19 @@ export const UserDashboard: React.FC = () => {
         
         setEnabledLLMs(configs);
 
+        const defaultLLM = configs.find(c => c.isDefault);
+        
         if (pref.preferred_llm_id && configs.some(c => c.id === pref.preferred_llm_id)) {
-          setSelectedLLMId(pref.preferred_llm_id);
-        } else {
-          const defaultLLM = configs.find(c => c.isDefault);
-          if (defaultLLM) {
-            setSelectedLLMId(defaultLLM.id);
+          // If user's preference is the default LLM, keep selectedLLMId as null
+          // so it matches the empty MenuItem value in LLMSelector
+          if (defaultLLM && pref.preferred_llm_id === defaultLLM.id) {
+            setSelectedLLMId(null);
+          } else {
+            setSelectedLLMId(pref.preferred_llm_id);
           }
+        } else {
+          // No preference or invalid preference - use system default (null)
+          setSelectedLLMId(null);
         }
       } catch (error) {
         console.error('Failed to fetch initial data:', error);

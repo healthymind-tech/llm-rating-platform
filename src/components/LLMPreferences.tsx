@@ -129,8 +129,9 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
         ) : (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Choose your preferred AI model for conversations. If no preference is set, 
-              the system default will be used.
+              Choose your preferred AI model for conversations. Select "System Default" to always use 
+              whatever the system administrator has configured as the default model, or pick a specific model 
+              for your personal preference.
             </Typography>
 
             {success && (
@@ -151,7 +152,14 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
               >
                 <MenuItem value="">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                    <span>{getDefaultLLM()?.name || 'System Default'}</span>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                      <Typography variant="body2" fontWeight={600}>
+                        System Default
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {getDefaultLLM()?.name || 'No default configured'}
+                      </Typography>
+                    </Box>
                     <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
                       <Chip 
                         label={getDefaultLLM()?.type || 'default'} 
@@ -168,7 +176,7 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                     </Box>
                   </Box>
                 </MenuItem>
-                {enabledLLMs.filter(llm => !llm.isDefault).map((llm) => (
+                {enabledLLMs.map((llm) => (
                   <MenuItem key={llm.id} value={llm.id}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                       <span>{llm.name}</span>
@@ -179,6 +187,14 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                           variant="outlined"
                           sx={{ fontSize: '0.7rem', height: '20px' }}
                         />
+                        {llm.isDefault && (
+                          <Chip 
+                            label="System Default" 
+                            size="small" 
+                            color="success"
+                            sx={{ fontSize: '0.7rem', height: '20px' }}
+                          />
+                        )}
                       </Box>
                     </Box>
                   </MenuItem>
@@ -191,7 +207,7 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
               <Card sx={{ bgcolor: 'grey.50', mb: 2 }}>
                 <CardContent sx={{ py: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
-                    Current Selection:
+                    {selectedLLM ? 'Selected Model:' : 'Using System Default:'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                     <Typography variant="body1" fontWeight={600}>
@@ -203,17 +219,30 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                       color="primary"
                       variant="outlined"
                     />
-                    {getCurrentLLM()?.isDefault && (
+                    {!selectedLLM && (
                       <Chip 
                         label="System Default" 
                         size="small" 
                         color="success"
                       />
                     )}
+                    {selectedLLM && getCurrentLLM()?.isDefault && (
+                      <Chip 
+                        label="Also System Default" 
+                        size="small" 
+                        color="info"
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                   <Typography variant="body2" color="text.secondary">
                     Model: {getCurrentLLM()?.model}
                   </Typography>
+                  {!selectedLLM && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      This will automatically change if the system administrator updates the default model.
+                    </Typography>
+                  )}
                 </CardContent>
               </Card>
             )}
