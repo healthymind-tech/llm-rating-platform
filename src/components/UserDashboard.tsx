@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Card, CardContent, Alert, Container, useTheme, useMediaQuery, IconButton, Tooltip } from '@mui/material';
 import { ChatInterface } from './ChatInterface';
 import { LLMSelector } from './LLMSelector';
-import { ChatMessage, MessageRating } from '../types';
+import { ChatMessage, MessageRating, LLMConfig } from '../types';
 import { useAuthStore } from '../store/authStore';
-import { chatAPI, messageRatingAPI, userProfileAPI } from '../services/api';
+import { chatAPI, messageRatingAPI, userProfileAPI, configAPI } from '../services/api';
 import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage } from '../hooks/useLanguage';
 import { UserProfileForm, ProfileData } from './UserProfileForm';
@@ -25,6 +25,66 @@ export const UserDashboard: React.FC = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [selectedLLMId, setSelectedLLMId] = useState<string | null>(null);
+  const [enabledLLMs, setEnabledLLMs] = useState<LLMConfig[]>([]);
+  const [isWindowDragging, setIsWindowDragging] = useState(false);
+
+  // Fetch enabled LLM configurations and user preference
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const [configs, pref] = await Promise.all([
+          configAPI.getEnabledConfigs(),
+          userProfileAPI.getLLMPreference(),
+        ]);
+        
+        setEnabledLLMs(configs);
+
+        if (pref.preferred_llm_id && configs.some(c => c.id === pref.preferred_llm_id)) {
+          setSelectedLLMId(pref.preferred_llm_id);
+        } else {
+          const defaultLLM = configs.find(c => c.isDefault);
+          if (defaultLLM) {
+            setSelectedLLMId(defaultLLM.id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch initial data:', error);
+      }
+    };
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer?.types.includes('Files')) {
+        setIsWindowDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.relatedTarget === null) {
+        setIsWindowDragging(false);
+      }
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragleave', handleDragLeave);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragleave', handleDragLeave);
+    };
+  }, []);
+
+  // Get current LLM configuration
+  const getCurrentLLM = () => {
+    if (selectedLLMId) {
+      return enabledLLMs.find(llm => llm.id === selectedLLMId);
+    }
+    return enabledLLMs.find(llm => llm.isDefault);
+  };
 
   // Check if there's an unrated assistant message
   const hasUnratedAssistantMessage = () => {
@@ -102,7 +162,7 @@ export const UserDashboard: React.FC = () => {
     setWaitingForRating(false);
   };
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, images?: string[]) => {
     if (!user) return;
     
     // Check if there's an unrated assistant message before sending
@@ -116,6 +176,7 @@ export const UserDashboard: React.FC = () => {
       role: 'user',
       content,
       timestamp: new Date().toISOString(),
+      images,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -217,7 +278,8 @@ export const UserDashboard: React.FC = () => {
           });
           setLoading(false);
           // Don't block input for error messages
-        }
+        },
+        images
       );
     } catch (error) {
       setMessages(prev => {
@@ -256,8 +318,29 @@ export const UserDashboard: React.FC = () => {
       height: 'calc(100vh - 64px)', // Full height minus app bar
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
+      {isWindowDragging && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <Typography variant="h4" color="white">
+            Drop image here to upload
+          </Typography>
+        </Box>
+      )}
       <Container maxWidth="lg" sx={{ 
         py: { xs: 1, sm: 2 },
         flex: 1,
@@ -368,6 +451,7 @@ export const UserDashboard: React.FC = () => {
                 messageRatings={messageRatings}
                 onRateMessage={handleMessageRating}
                 ratingDisabled={false}
+                supportsVision={getCurrentLLM()?.supportsVision || false}
               />
             </Box>
           </CardContent>
