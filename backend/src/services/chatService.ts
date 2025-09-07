@@ -75,7 +75,8 @@ export class ChatService {
     content: string,
     inputTokens: number = 0,
     outputTokens: number = 0,
-    modelInfo?: { id: string; name: string; type: string }
+    modelInfo?: { id: string; name: string; type: string },
+    images?: string[]
   ): Promise<ChatMessage> {
     try {
       const messageId = uuidv4();
@@ -85,12 +86,12 @@ export class ChatService {
       
       if (modelInfo && role === 'assistant') {
         // Include model information for assistant messages
-        query = 'INSERT INTO chat_messages (id, session_id, user_id, role, content, input_tokens, output_tokens, model_id, model_name, model_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *';
-        values = [messageId, sessionId, userId, role, content, inputTokens, outputTokens, modelInfo.id, modelInfo.name, modelInfo.type];
+        query = 'INSERT INTO chat_messages (id, session_id, user_id, role, content, images, input_tokens, output_tokens, model_id, model_name, model_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *';
+        values = [messageId, sessionId, userId, role, content, images || null, inputTokens, outputTokens, modelInfo.id, modelInfo.name, modelInfo.type];
       } else {
         // Regular message without model info (for user messages)
-        query = 'INSERT INTO chat_messages (id, session_id, user_id, role, content, input_tokens, output_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *';
-        values = [messageId, sessionId, userId, role, content, inputTokens, outputTokens];
+        query = 'INSERT INTO chat_messages (id, session_id, user_id, role, content, images, input_tokens, output_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *';
+        values = [messageId, sessionId, userId, role, content, images || null, inputTokens, outputTokens];
       }
       
       const result = await pool.query(query, values);
@@ -233,14 +234,39 @@ export class ChatService {
       }
 
       // Convert chat history to OpenAI format - include full session history
-      const messages = [
+      const messages: any[] = [
         { role: 'system', content: systemMessage },
-        ...history.map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
-        { role: 'user', content: message },
       ];
+
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          const parts: any[] = [];
+          if (msg.content && msg.content.trim().length > 0) {
+            parts.push({ type: 'text', text: msg.content });
+          }
+          
+          // Convert MinIO URLs to base64 data URLs for OpenAI
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageUrl = url;
+            // If it's a MinIO URL, convert to base64
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  imageUrl = await storageService.getImageAsBase64(key);
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, using original URL:', error);
+                }
+              }
+            }
+            parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+          }
+          messages.push({ role: 'user', content: parts });
+        } else {
+          messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      }
 
       const completion = await openai.chat.completions.create({
         model: config.model,
@@ -318,15 +344,40 @@ export class ChatService {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }
 
-      // Convert chat history to OpenAI format
-      const messages = [
+      // Convert chat history to OpenAI format (vision-aware)
+      const messages: any[] = [
         { role: 'system', content: systemMessage },
-        ...history.map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
-        { role: 'user', content: message },
       ];
+
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          const parts: any[] = [];
+          if (msg.content && msg.content.trim().length > 0) {
+            parts.push({ type: 'text', text: msg.content });
+          }
+          
+          // Convert MinIO URLs to base64 data URLs for OpenAI
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageUrl = url;
+            // If it's a MinIO URL, convert to base64
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  imageUrl = await storageService.getImageAsBase64(key);
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, using original URL:', error);
+                }
+              }
+            }
+            parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+          }
+          messages.push({ role: 'user', content: parts });
+        } else {
+          messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      }
 
       const stream = await openai.chat.completions.create({
         model: config.model,
