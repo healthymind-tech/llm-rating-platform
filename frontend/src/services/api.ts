@@ -99,12 +99,13 @@ export const chatAPI = {
   },
 
   sendMessageStream: async (
-    message: string, 
-    userId: string, 
+    message: string,
+    userId: string,
     sessionId: string | undefined,
     onChunk: (chunk: string) => void,
     onComplete: (data: { sessionId?: string; messageId: string }) => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    images?: string[]
   ): Promise<void> => {
     try {
       const token = localStorage.getItem('auth-storage') 
@@ -117,7 +118,7 @@ export const chatAPI = {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : '',
         },
-        body: JSON.stringify({ message, sessionId }),
+        body: JSON.stringify({ message, sessionId, images }),
       });
 
       if (!response.ok) {
@@ -216,6 +217,7 @@ export const configAPI = {
       maxTokens: config.max_tokens,
       systemPrompt: config.system_prompt,
       repetitionPenalty: config.repetition_penalty,
+      supportsVision: config.supports_vision || false,
       isEnabled: config.is_enabled,
       isDefault: config.is_default,
     }));
@@ -242,6 +244,7 @@ export const configAPI = {
       max_tokens: configData.maxTokens,
       system_prompt: configData.systemPrompt,
       repetition_penalty: configData.repetitionPenalty,
+      supports_vision: configData.supportsVision || false,
       is_enabled: configData.isEnabled,
       is_default: configData.isDefault,
     };
@@ -261,6 +264,7 @@ export const configAPI = {
     if (updates.maxTokens !== undefined) backendUpdates.max_tokens = updates.maxTokens;
     if (updates.systemPrompt !== undefined) backendUpdates.system_prompt = updates.systemPrompt;
     if (updates.repetitionPenalty !== undefined) backendUpdates.repetition_penalty = updates.repetitionPenalty;
+     if (updates.supportsVision !== undefined) backendUpdates.supports_vision = updates.supportsVision;
     if (updates.isEnabled !== undefined) backendUpdates.is_enabled = updates.isEnabled;
     if (updates.isDefault !== undefined) backendUpdates.is_default = updates.isDefault;
     
@@ -283,6 +287,7 @@ export const configAPI = {
       id: config.id,
       name: config.name,
       type: config.type,
+      supportsVision: config.supports_vision || false,
       apiKey: config.api_key,
       endpoint: config.endpoint,
       model: config.model,

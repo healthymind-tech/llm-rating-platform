@@ -7,9 +7,11 @@ A complete full-stack application for testing and interacting with tuned Languag
 - **Frontend**: React 18 + TypeScript + Material-UI
 - **Backend**: Node.js + Express + TypeScript
 - **Database**: PostgreSQL
+- **Storage**: MinIO (S3-compatible object storage)
+- **Reverse Proxy**: Nginx
 - **Authentication**: JWT tokens
 - **Containerization**: Docker & Docker Compose
-- **LLM Support**: OpenAI API & Ollama
+- **LLM Support**: OpenAI API & Ollama with Vision capabilities
 
 ## 🚀 Quick Start
 
@@ -30,8 +32,10 @@ cp backend/.env.example backend/.env
 # Edit backend/.env with your settings
 
 # Frontend environment  
+cd frontend
 cp .env.example .env
-# Edit .env with your API URL
+# Edit frontend/.env with your API URL
+cd ..
 ```
 
 ### 3. Start with Docker (Recommended)
@@ -61,14 +65,16 @@ npm run dev
 
 **Frontend:**
 ```bash
+cd frontend
 npm install
 npm start
 ```
 
 ## 🔐 Default Credentials
 
-- **Admin**: `admin` / `password`
-- **User**: `user` / `password`
+- Login uses `email` and `password` (not username).
+- **Admin**: email `admin@healthymind-tech.com` / password `admin`
+- **User**: email `user@healthymind-tech.com` / password `user`
 
 ## 📡 API Endpoints
 
@@ -81,7 +87,8 @@ npm start
 - `DELETE /api/auth/users/:id` - Delete user (admin)
 
 ### Chat
-- `POST /api/chat/message` - Send message to AI
+- `POST /api/chat/message` - Send message to AI (supports images)
+- `POST /api/chat/message/stream` - Send message with streaming response
 - `GET /api/chat/sessions` - Get user chat sessions
 - `GET /api/chat/sessions/:id/messages` - Get session messages
 
@@ -126,6 +133,12 @@ CREATE TABLE chat_messages (
     user_id UUID REFERENCES users(id),
     role VARCHAR(10) CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL,
+    images TEXT[], -- Array of image URLs for vision-enabled chat
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    model_id UUID,
+    model_name VARCHAR(100),
+    model_type VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -141,7 +154,11 @@ CREATE TABLE llm_configs (
     model VARCHAR(100) NOT NULL,
     temperature DECIMAL(3,2) DEFAULT 0.7,
     max_tokens INTEGER DEFAULT 2048,
-    is_active BOOLEAN DEFAULT false,
+    system_prompt TEXT,
+    repetition_penalty DECIMAL(3,2),
+    supports_vision BOOLEAN DEFAULT false,
+    is_enabled BOOLEAN DEFAULT true,
+    is_default BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -154,7 +171,7 @@ CREATE TABLE llm_configs (
 # Server
 PORT=3001
 NODE_ENV=development
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost
 
 # Security
 JWT_SECRET=your-super-secret-jwt-key
@@ -166,6 +183,15 @@ DB_NAME=llm_testing_platform
 DB_USER=postgres
 DB_PASSWORD=postgres
 
+# MinIO Object Storage
+MINIO_ENDPOINT=minio
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=chat-uploads
+MINIO_PUBLIC_BASE_URL=http://localhost/minio
+
 # LLM APIs (optional)
 OPENAI_API_KEY=your-openai-key
 OLLAMA_ENDPOINT=http://localhost:11434
@@ -175,6 +201,32 @@ OLLAMA_ENDPOINT=http://localhost:11434
 ```env
 REACT_APP_API_URL=http://localhost:3001/api
 ```
+
+## 📸 Vision & Image Upload
+
+The platform supports image uploads and vision-enabled AI models for multimodal conversations.
+
+### Image Upload Features
+- **Multiple Formats**: Support for JPG, PNG, WebP, and other common image formats
+- **Drag & Drop**: Intuitive drag-and-drop interface for easy image uploads
+- **Copy & Paste**: Paste images directly from clipboard
+- **File Selection**: Traditional file picker with multi-select support
+- **Image Preview**: Thumbnail previews with removal options
+- **Large File Support**: Handles images up to 50MB via nginx proxy
+- **Secure Storage**: Images stored in MinIO with proper access controls
+
+### Vision-Enabled Chat
+- **OpenAI Vision**: Full support for GPT-4V and other vision models
+- **Base64 Conversion**: Automatic conversion of stored images to base64 for API compatibility
+- **Message History**: Images preserved in chat history with proper URLs
+- **Modal View**: Click images to view in full-screen lightbox
+- **Responsive Display**: Optimized image display across devices
+
+### Technical Implementation
+- **MinIO Storage**: S3-compatible object storage for scalable image handling
+- **Nginx Proxy**: Proper routing and caching for image assets
+- **Database Integration**: Image URLs stored as arrays in message records
+- **API Compatibility**: Automatic format conversion for different LLM providers
 
 ## ⭐ Message Rating System
 
@@ -206,9 +258,11 @@ The platform includes a comprehensive message rating system that allows users to
 2. In admin panel, create new configuration:
    - **Type**: OpenAI
    - **API Key**: Your OpenAI key
-   - **Model**: gpt-4, gpt-3.5-turbo, etc.
+   - **Model**: gpt-4, gpt-4-vision-preview, gpt-3.5-turbo, etc.
    - **Temperature**: 0.0-2.0
    - **Max Tokens**: 1-4096+
+   - **Supports Vision**: Enable for GPT-4V and other vision models
+   - **System Prompt**: Custom instructions for the AI
 
 ### Ollama Setup
 1. Start Ollama server locally or on server
@@ -223,10 +277,13 @@ The platform includes a comprehensive message rating system that allows users to
 ### Available Services
 ```yaml
 services:
-  postgres:    # PostgreSQL database
-  backend:     # Node.js API server
-  frontend:    # React application
-  ollama:      # Ollama LLM server (optional)
+  postgres:      # PostgreSQL database
+  backend:       # Node.js API server
+  frontend:      # React application
+  nginx:         # Reverse proxy and load balancer
+  minio:         # S3-compatible object storage
+  minio-setup:   # MinIO bucket initialization
+  ollama:        # Ollama LLM server (optional)
 ```
 
 ### Docker Commands
@@ -281,10 +338,18 @@ docker compose up -d postgres
 
 ## 📊 Monitoring
 
+### Service Endpoints
+- **Frontend**: `http://localhost` (via nginx)
+- **Backend API**: `http://localhost/api` (via nginx)
+- **MinIO Console**: `http://localhost/minio-console` (admin: minioadmin/minioadmin)
+- **Direct Backend**: `http://localhost:3001` (development only)
+- **Direct MinIO**: `http://localhost:9000` (development only)
+
 ### Health Checks
-- Backend: `http://localhost:3001/health`
-- Frontend: `http://localhost:3000`
+- Backend: `http://localhost/api/health`
+- Frontend: `http://localhost`
 - Database: `docker compose ps postgres`
+- MinIO: `docker compose ps minio`
 
 ### Logs
 ```bash
@@ -407,5 +472,23 @@ docker compose restart backend
 - Check API keys are valid
 - Ensure Ollama server is running (if using Ollama)
 - Check backend logs for LLM API errors
+
+**Image Upload Issues**
+- Check if MinIO container is running: `docker compose ps minio`
+- Verify MinIO console access: `http://localhost/minio-console`
+- Check nginx upload limits (should be 50MB for API, 1GB for MinIO)
+- Review MinIO logs: `docker compose logs minio`
+- Ensure bucket exists and has proper permissions
+
+**413 Request Entity Too Large**
+- Increase nginx `client_max_body_size` in `nginx.conf`
+- Restart nginx: `docker compose restart nginx`
+- Check image file size (current limit: 50MB via API)
+
+**Images Not Loading**
+- Check MinIO container status and logs
+- Verify image URLs in database point to correct nginx proxy path
+- Ensure MinIO bucket has public read access
+- Check nginx proxy configuration for `/minio/` path
 
 For more help, check the logs or create an issue.

@@ -20,6 +20,7 @@ CREATE TABLE llm_configs (
     max_tokens INTEGER DEFAULT 2048 CHECK (max_tokens > 0),
     system_prompt TEXT,
     repetition_penalty DECIMAL(3,2),
+    supports_vision BOOLEAN DEFAULT false,
     is_enabled BOOLEAN DEFAULT false, -- Admin can enable/disable LLMs
     is_default BOOLEAN DEFAULT false, -- Default LLM for new users
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -60,6 +61,7 @@ CREATE TABLE chat_messages (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(10) NOT NULL CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL,
+    images TEXT[],
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     model_id UUID REFERENCES llm_configs(id),

@@ -53,8 +53,8 @@ export class ConfigService {
 
       const result = await pool.query(
         `INSERT INTO llm_configs 
-         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, is_enabled, is_default) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, supports_vision, is_enabled, is_default) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
          RETURNING *`,
         [
           configId,
@@ -67,6 +67,7 @@ export class ConfigService {
           configData.max_tokens,
           configData.system_prompt,
           configData.repetition_penalty,
+          (configData as any).supports_vision || false,
           configData.is_enabled,
           configData.is_default,
         ]
@@ -84,9 +85,34 @@ export class ConfigService {
 
   static async updateConfig(id: string, updates: Partial<Omit<LLMConfig, 'id' | 'created_at' | 'updated_at'>>): Promise<LLMConfig> {
     try {
-      // If this config is being set to default, remove default from all others first
+      // Load current config for validation
+      const current = await this.getConfigById(id);
+      if (!current) {
+        throw new Error('Configuration not found');
+      }
+
+      // Enforce: cannot set default on disabled config
       if (updates.is_default) {
+        const willBeEnabled = updates.is_enabled !== undefined ? updates.is_enabled : current.is_enabled;
+        if (!willBeEnabled) {
+          throw new Error('Cannot set a disabled configuration as default');
+        }
+        // Remove default from others first
         await pool.query('UPDATE llm_configs SET is_default = false WHERE id != $1', [id]);
+      }
+
+      // Enforce: if disabling current default, auto-switch default to another enabled config if available
+      if (updates.is_enabled === false && current.is_default) {
+        const candidate = await pool.query(
+          'SELECT id FROM llm_configs WHERE id != $1 AND is_enabled = true ORDER BY is_default DESC, created_at ASC LIMIT 1',
+          [id]
+        );
+        if (candidate.rows.length === 0) {
+          throw new Error('Cannot disable the default configuration. Enable another configuration and set it as default first.');
+        }
+        // Reassign default to candidate
+        await pool.query('UPDATE llm_configs SET is_default = false');
+        await pool.query('UPDATE llm_configs SET is_default = true WHERE id = $1', [candidate.rows[0].id]);
       }
 
       const fields = Object.keys(updates);
@@ -206,6 +232,14 @@ export class ConfigService {
 
   static async setDefaultConfig(id: string): Promise<LLMConfig> {
     try {
+      // Ensure target config exists and is enabled
+      const target = await this.getConfigById(id);
+      if (!target) {
+        throw new Error('Configuration not found');
+      }
+      if (!target.is_enabled) {
+        throw new Error('Cannot set default: configuration is disabled');
+      }
       // Remove default from all configs
       await pool.query('UPDATE llm_configs SET is_default = false');
       

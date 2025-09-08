@@ -16,6 +16,7 @@ export interface ChatMessage {
   user_id: string;
   role: 'user' | 'assistant';
   content: string;
+  images?: string[];
   created_at: Date;
 }
 
@@ -37,6 +38,7 @@ export interface LLMConfig {
   max_tokens: number;
   system_prompt?: string;
   repetition_penalty?: number;
+  supports_vision?: boolean;
   is_enabled: boolean;
   is_default: boolean;
   created_at: Date;

@@ -34,14 +34,22 @@ services:
       DB_PASSWORD: postgres
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
       FRONTEND_URL: http://localhost
+      # MinIO settings (overridden by .env if present)
+      MINIO_ENDPOINT: minio
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: chat-uploads
+      # Public URL for generated links via nginx proxy
+      MINIO_PUBLIC_BASE_URL: http://162.38.2.150/minio
     # Remove port exposure - only accessible through nginx
     expose:
       - "3001"
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./backend/.env:/app/.env
+      minio:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => { process.exit(1) })"]
       interval: 30s
@@ -51,11 +59,11 @@ services:
   # Frontend
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend.simple
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        REACT_APP_API_URL: /api
     container_name: llm-platform-frontend
-    environment:
-      REACT_APP_API_URL: /api
     # Remove port exposure - only accessible through nginx
     expose:
       - "80"
@@ -76,6 +84,7 @@ services:
     depends_on:
       - backend
       - frontend
+      - minio
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
@@ -96,7 +105,42 @@ services:
     profiles:
       - ollama
 
+  # MinIO (S3-compatible object storage for images)
+  minio:
+    image: minio/minio:latest
+    container_name: llm-platform-minio
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO setup: create bucket and make it publicly readable for serving images
+  minio-setup:
+    image: minio/mc:latest
+    container_name: llm-platform-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "mc alias set local http://minio:9000 minioadmin minioadmin &&
+       mc mb -p local/chat-uploads || true &&
+       mc anonymous set download local/chat-uploads || true &&
+       echo 'MinIO bucket chat-uploads ready'"
+    restart: "no"
+
 volumes:
   postgres_data:
   ollama_data:
   nginx_logs:
+  minio_data:

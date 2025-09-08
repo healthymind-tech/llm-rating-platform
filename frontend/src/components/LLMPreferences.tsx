@@ -187,6 +187,15 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                           variant="outlined"
                           sx={{ fontSize: '0.7rem', height: '20px' }}
                         />
+                        {llm.supportsVision && (
+                          <Chip 
+                            label="Vision" 
+                            size="small" 
+                            color="secondary"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem', height: '20px' }}
+                          />
+                        )}
                         {llm.isDefault && (
                           <Chip 
                             label="System Default" 

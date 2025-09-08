@@ -46,7 +46,7 @@ router.get('/sessions/:sessionId/messages', authenticateToken, async (req: AuthR
 router.post('/sessions/:sessionId/messages', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { sessionId } = req.params;
-    const { message } = req.body;
+    const { message, images } = req.body as { message: string; images?: string[] };
     const userId = req.user!.userId;
 
     if (!message || typeof message !== 'string') {
@@ -54,7 +54,20 @@ router.post('/sessions/:sessionId/messages', authenticateToken, async (req: Auth
     }
 
     // Save user message
-    const userMessage = await ChatService.saveMessage(sessionId, userId, 'user', message);
+    let imageUrls: string[] | undefined = undefined;
+    if (Array.isArray(images) && images.length > 0) {
+      try {
+        const { storageService } = await import('../services/storageService');
+        const uploads = await Promise.all(
+          images.map((img) => storageService.uploadBase64Image(img, { userId, sessionId }))
+        );
+        imageUrls = uploads.map(u => u.url);
+      } catch (uploadErr) {
+        console.error('Image upload failed:', uploadErr);
+      }
+    }
+
+    const userMessage = await ChatService.saveMessage(sessionId, userId, 'user', message, 0, 0, undefined, imageUrls);
 
     // Get AI response
     const aiResult = await ChatService.sendMessageToLLM(message, sessionId, userId);
@@ -121,7 +134,7 @@ router.post('/message', authenticateToken, async (req: AuthRequest, res) => {
 // Streaming chat endpoint
 router.post('/message/stream', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const { message, sessionId } = req.body;
+    const { message, sessionId, images } = req.body as { message: string; sessionId?: string; images?: string[] };
     const userId = req.user!.userId;
 
     if (!message || typeof message !== 'string') {
@@ -143,8 +156,22 @@ router.post('/message/stream', authenticateToken, async (req: AuthRequest, res) 
       currentSessionId = session.id;
     }
 
-    // Save user message
-    await ChatService.saveMessage(currentSessionId, userId, 'user', message);
+    // If images are provided, attempt to save them to storage and store URLs on the message
+    let imageUrls: string[] | undefined = undefined;
+    if (Array.isArray(images) && images.length > 0) {
+      try {
+        const { storageService } = await import('../services/storageService');
+        const uploads = await Promise.all(
+          images.map((img) => storageService.uploadBase64Image(img, { userId, sessionId: currentSessionId! }))
+        );
+        imageUrls = uploads.map(u => u.url);
+      } catch (uploadErr) {
+        console.error('Image upload failed:', uploadErr);
+      }
+    }
+
+    // Save user message (with images, if any)
+    await ChatService.saveMessage(currentSessionId, userId, 'user', message, 0, 0, undefined, imageUrls);
 
     // Send session info first
     res.write(`data: ${JSON.stringify({ sessionId: currentSessionId, type: 'session' })}\n\n`);

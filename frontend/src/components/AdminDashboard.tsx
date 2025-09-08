@@ -114,6 +114,7 @@ export const AdminDashboard: React.FC = () => {
     maxTokens: '1000',
     systemPrompt: '',
     repetitionPenalty: '1.0',
+    supportsVision: false,
     isEnabled: false,
     isDefault: false,
   });
@@ -442,6 +443,7 @@ export const AdminDashboard: React.FC = () => {
           maxTokens: typeof selectedConfig.maxTokens === 'string' ? parseInt(selectedConfig.maxTokens) : selectedConfig.maxTokens,
           systemPrompt: selectedConfig.systemPrompt,
           repetitionPenalty: typeof selectedConfig.repetitionPenalty === 'string' ? parseFloat(selectedConfig.repetitionPenalty) : selectedConfig.repetitionPenalty,
+          supportsVision: selectedConfig.supportsVision || false,
           isEnabled: selectedConfig.isEnabled,
           isDefault: selectedConfig.isDefault,
         });
@@ -456,6 +458,7 @@ export const AdminDashboard: React.FC = () => {
           maxTokens: typeof newConfig.maxTokens === 'string' && newConfig.maxTokens !== '' ? parseInt(newConfig.maxTokens) : 1000,
           systemPrompt: newConfig.systemPrompt,
           repetitionPenalty: typeof newConfig.repetitionPenalty === 'string' && newConfig.repetitionPenalty !== '' ? parseFloat(newConfig.repetitionPenalty) : 1.0,
+          supportsVision: newConfig.supportsVision || false,
           isEnabled: newConfig.isEnabled,
           isDefault: newConfig.isDefault,
         });
@@ -475,6 +478,7 @@ export const AdminDashboard: React.FC = () => {
         maxTokens: '1000',
         systemPrompt: '',
         repetitionPenalty: '1.0',
+        supportsVision: false,
         isEnabled: false,
         isDefault: false,
       });
@@ -1054,7 +1058,20 @@ export const AdminDashboard: React.FC = () => {
             <FormControlLabel
               control={
                 <Switch
+                  checked={selectedConfig?.supportsVision || newConfig.supportsVision}
+                  onChange={(e) => selectedConfig 
+                    ? setSelectedConfig({...selectedConfig, supportsVision: e.target.checked})
+                    : setNewConfig({...newConfig, supportsVision: e.target.checked})
+                  }
+                />
+              }
+              label="Supports Vision (images)"
+            />
+            <FormControlLabel
+              control={
+                <Switch
                   checked={selectedConfig?.isDefault || newConfig.isDefault}
+                  disabled={!(selectedConfig?.isEnabled || newConfig.isEnabled)}
                   onChange={(e) => selectedConfig 
                     ? setSelectedConfig({...selectedConfig, isDefault: e.target.checked})
                     : setNewConfig({...newConfig, isDefault: e.target.checked})

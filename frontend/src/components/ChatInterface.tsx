@@ -380,7 +380,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             {message.images.map((image, imgIndex) => (
                               <ImageListItem key={imgIndex}>
                                 <img
-                                  src={`data:image/jpeg;base64,${image}`}
+                                  src={/^https?:\/\//.test(image) ? image : `data:image/jpeg;base64,${image}`}
                                   alt={`Uploaded image ${imgIndex + 1}`}
                                   style={{
                                     height: 'auto',
@@ -389,7 +389,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                     objectFit: 'cover',
                                     cursor: 'pointer'
                                   }}
-                                  onClick={() => handleImageClick(`data:image/jpeg;base64,${image}`)}
+                                  onClick={() => handleImageClick(/^https?:\/\//.test(image) ? image : `data:image/jpeg;base64,${image}`)}
                                 />
                               </ImageListItem>
                             ))}

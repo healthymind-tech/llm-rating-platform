@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import { runMigrations } from './database/migrate';
 
 dotenv.config();
 
@@ -123,7 +124,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-});
+// Run DB migrations first, then start server
+runMigrations()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to run migrations. Exiting.', err);
+    process.exit(1);
+  });

@@ -31,6 +31,7 @@ router.get('/enabled', authenticateToken, async (req: AuthRequest, res) => {
       name: config.name,
       type: config.type,
       model: config.model,
+      supports_vision: (config as any).supports_vision || false,
       is_enabled: config.is_enabled,
       is_default: config.is_default,
     }));
@@ -62,6 +63,7 @@ router.get('/user-config', authenticateToken, async (req: AuthRequest, res) => {
       name: config.name,
       type: config.type,
       model: config.model,
+      supports_vision: (config as any).supports_vision || false,
       is_enabled: config.is_enabled,
       is_default: config.is_default,
     };
@@ -103,6 +105,7 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
       max_tokens,
       system_prompt,
       repetition_penalty,
+      supports_vision,
       is_enabled,
       is_default,
     } = req.body;
@@ -153,6 +156,7 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
       max_tokens: max_tokens ? parseInt(max_tokens) : 2048,
       system_prompt: system_prompt || undefined,
       repetition_penalty: repetition_penalty ? parseFloat(repetition_penalty) : undefined,
+      supports_vision: supports_vision || false,
       is_enabled: is_enabled || false,
       is_default: is_default || false,
     };
@@ -179,6 +183,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       max_tokens,
       system_prompt,
       repetition_penalty,
+      supports_vision,
       is_enabled,
       is_default,
     } = req.body;
@@ -217,6 +222,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       }
       updates.repetition_penalty = penaltyNum;
     }
+    if (supports_vision !== undefined) updates.supports_vision = !!supports_vision;
     if (is_enabled !== undefined) updates.is_enabled = is_enabled;
     if (is_default !== undefined) updates.is_default = is_default;
 

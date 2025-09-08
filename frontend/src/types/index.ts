@@ -12,6 +12,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  images?: string[];
   rating?: 'like' | 'dislike';
   reason?: string;
   needsRating?: boolean; // For assistant messages that haven't been rated yet
@@ -36,6 +37,8 @@ export interface LLMConfig {
   maxTokens: number;
   systemPrompt?: string;
   repetitionPenalty?: number;
+  // Whether this LLM configuration supports vision/image input features
+  supportsVision?: boolean;
   isEnabled: boolean;
   isDefault: boolean;
 }
