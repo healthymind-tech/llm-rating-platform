@@ -41,7 +41,8 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: chat-uploads
       # Public URL for generated links via nginx proxy
-      MINIO_PUBLIC_BASE_URL: http://162.38.2.150/minio
+      # Use a relative path so clients load via the same host:port as the frontend
+      MINIO_PUBLIC_BASE_URL: /minio
     # Remove port exposure - only accessible through nginx
     expose:
       - "3001"
