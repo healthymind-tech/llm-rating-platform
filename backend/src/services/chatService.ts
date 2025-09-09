@@ -142,6 +142,8 @@ export class ChatService {
         result = await this.sendToOpenAI(message, messages, config, userId);
       } else if (config.type === 'ollama') {
         result = await this.sendToOllama(message, messages, config, userId);
+      } else if (config.type === 'azure') {
+        result = await this.sendToAzure(message, messages, config, userId);
       } else {
         throw new Error('Unsupported LLM type');
       }
@@ -183,6 +185,8 @@ export class ChatService {
         fullResponse = await this.sendToOpenAIStream(message, messages, config, userId, res);
       } else if (config.type === 'ollama') {
         fullResponse = await this.sendToOllamaStream(message, messages, config, userId, res);
+      } else if (config.type === 'azure') {
+        fullResponse = await this.sendToAzureStream(message, messages, config, userId, res);
       } else {
         throw new Error('Unsupported LLM type');
       }
@@ -624,5 +628,179 @@ export class ChatService {
         totalTokens: this.estimateTokens(message + response)
       }
     };
+  }
+
+  private static async sendToAzure(message: string, history: ChatMessage[], config: LLMConfig, userId?: string): Promise<{response: string, tokenUsage?: {inputTokens: number, outputTokens: number, totalTokens: number}}> {
+    try {
+      if (!config.endpoint) throw new Error('Azure base URL not configured');
+      const apiVersion = (config as any).api_version;
+      if (!apiVersion) throw new Error('Azure API version not configured');
+      if (!config.api_key) throw new Error('Azure token not configured');
+
+      // Get user profile information for context
+      let userProfileContext = '';
+      if (userId) {
+        try {
+          userProfileContext = await userProfileService.getUserProfileForLLM(userId);
+        } catch (error) {
+          console.warn('Could not get user profile for LLM context:', error);
+        }
+      }
+
+      // Build system message with user profile context
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
+      if (userProfileContext) {
+        systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
+      }
+
+      // Convert chat history to OpenAI-compatible format
+      const messages = [
+        { role: 'system', content: systemMessage },
+        ...history.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: message },
+      ];
+
+      const cleanBase = config.endpoint.replace(/\/$/, '');
+      const url = `${cleanBase}/openai/deployments/${encodeURIComponent(config.model)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+
+      const response = await axios.post(url, {
+        messages,
+        max_tokens: parseInt((config.max_tokens as any) ?? 150),
+        temperature: parseFloat((config.temperature as any) ?? 0.7),
+        top_p: 1,
+        model: config.model,
+      }, {
+        headers: (() => {
+          const apiKey = config.api_key as string;
+          const isBearer = apiKey && apiKey.includes('.') && apiKey.split('.').length >= 3;
+          return isBearer
+            ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }
+            : { 'Content-Type': 'application/json', 'api-key': apiKey };
+        })(),
+        timeout: 30000,
+      });
+
+      const content = response.data?.choices?.[0]?.message?.content || 'No response generated';
+      return { response: content };
+    } catch (error: any) {
+      console.error('Azure API error:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Azure deployment not found. Ensure the "Model" field is your deployment name, not the base model name.');
+      }
+      throw new Error(`Azure API error: ${error.message}`);
+    }
+  }
+
+  private static async sendToAzureStream(
+    message: string,
+    history: ChatMessage[],
+    config: LLMConfig,
+    userId: string | undefined,
+    res: Response
+  ): Promise<string> {
+    try {
+      if (!config.endpoint) throw new Error('Azure base URL not configured');
+      const apiVersion = (config as any).api_version;
+      if (!apiVersion) throw new Error('Azure API version not configured');
+      if (!config.api_key) throw new Error('Azure token not configured');
+
+      // Get user profile information for context
+      let userProfileContext = '';
+      if (userId) {
+        try {
+          userProfileContext = await userProfileService.getUserProfileForLLM(userId);
+        } catch (error) {
+          console.warn('Could not get user profile for LLM context:', error);
+        }
+      }
+
+      // Build system message with user profile context
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
+      if (userProfileContext) {
+        systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
+      }
+
+      const messages = [
+        { role: 'system', content: systemMessage },
+        ...history.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: message },
+      ];
+
+      const cleanBase = config.endpoint.replace(/\/$/, '');
+      const url = `${cleanBase}/openai/deployments/${encodeURIComponent(config.model)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+
+      // Try streaming first
+      try {
+        const response = await axios.post(url, {
+          messages,
+          stream: true,
+          temperature: parseFloat((config.temperature as any) ?? 0.7),
+          max_tokens: parseInt((config.max_tokens as any) ?? 150),
+          top_p: 1,
+          model: config.model,
+        }, {
+          responseType: 'stream',
+          headers: (() => {
+            const apiKey = config.api_key as string;
+            const isBearer = apiKey && apiKey.includes('.') && apiKey.split('.').length >= 3;
+            return isBearer
+              ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }
+              : { 'Content-Type': 'application/json', 'api-key': apiKey };
+          })(),
+          timeout: 30000,
+        });
+
+        let fullResponse = '';
+
+        return await new Promise((resolve, reject) => {
+          response.data.on('data', (chunk: Buffer) => {
+            const lines = chunk.toString().split('\n').filter((l: string) => l.trim().length > 0);
+            for (const line of lines) {
+              const trimmed = line.startsWith('data:') ? line.slice(5).trim() : line.trim();
+              if (trimmed === '[DONE]') {
+                res.write(`data: ${JSON.stringify({ content: '', done: true })}\n\n`);
+                resolve(fullResponse);
+                return;
+              }
+              try {
+                const obj = JSON.parse(trimmed);
+                const delta = obj?.choices?.[0]?.delta?.content || obj?.choices?.[0]?.message?.content || obj?.content;
+                if (delta) {
+                  fullResponse += delta;
+                  res.write(`data: ${JSON.stringify({ content: delta, done: false })}\n\n`);
+                }
+              } catch (_) {
+                // Non-JSON line, ignore
+              }
+            }
+          });
+
+          response.data.on('error', (err: any) => {
+            reject(err);
+          });
+
+          response.data.on('end', () => {
+            if (!fullResponse) {
+              resolve('');
+            } else {
+              resolve(fullResponse);
+            }
+          });
+        });
+      } catch (streamErr) {
+        console.warn('Azure streaming failed, falling back to non-streaming:', streamErr);
+        // Fallback to non-streaming
+        const result = await this.sendToAzure(message, history, config, userId);
+        res.write(`data: ${JSON.stringify({ content: result.response, done: false })}\n\n`);
+        res.write(`data: ${JSON.stringify({ content: '', done: true })}\n\n`);
+        return result.response;
+      }
+    } catch (error: any) {
+      console.error('Azure streaming error:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Azure deployment not found. Ensure the "Model" field is your deployment name, not the base model name.');
+      }
+      throw new Error(`Azure streaming error: ${error.message}`);
+    }
   }
 }

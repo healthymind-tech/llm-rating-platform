@@ -53,8 +53,8 @@ export class ConfigService {
 
       const result = await pool.query(
         `INSERT INTO llm_configs 
-         (id, name, type, api_key, endpoint, model, temperature, max_tokens, system_prompt, repetition_penalty, supports_vision, is_enabled, is_default) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+         (id, name, type, api_key, endpoint, api_version, model, temperature, max_tokens, system_prompt, repetition_penalty, supports_vision, is_enabled, is_default) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
          RETURNING *`,
         [
           configId,
@@ -62,6 +62,7 @@ export class ConfigService {
           configData.type,
           configData.api_key,
           configData.endpoint,
+          (configData as any).api_version || null,
           configData.model,
           configData.temperature,
           configData.max_tokens,
@@ -385,11 +386,13 @@ export class ConfigService {
     }
   }
 
-  static async fetchModels(type: string, endpoint: string, apiKey?: string): Promise<any[]> {
+  static async fetchModels(type: string, endpoint: string, apiKey?: string, apiVersion?: string): Promise<any[]> {
     if (type === 'ollama') {
       return await this.fetchOllamaModels(endpoint);
     } else if (type === 'openai') {
       return await this.fetchOpenAIModels(apiKey || '', endpoint);
+    } else if (type === 'azure') {
+      return await this.fetchAzureModels(endpoint, apiKey || '', apiVersion || '');
     } else {
       throw new Error(`Unsupported model type: ${type}`);
     }
@@ -449,6 +452,50 @@ export class ConfigService {
     }
   }
 
+  static async fetchAzureModels(baseURL: string, apiKey: string, apiVersion: string): Promise<any[]> {
+    try {
+      if (!baseURL) throw new Error('Base URL is required for Azure');
+      if (!apiVersion) throw new Error('API version is required for Azure');
+      if (!apiKey) throw new Error('Token is required for Azure');
+
+      const cleanBaseURL = baseURL.replace(/\/$/, '');
+      // Support either API key or AAD bearer token
+      const isBearer = apiKey.includes('.') && apiKey.split('.').length >= 3;
+      const headers: any = isBearer ? { 'Authorization': `Bearer ${apiKey}` } : { 'api-key': apiKey };
+
+      // Prefer listing deployments (what Azure requires for chat)
+      try {
+        const depUrl = `${cleanBaseURL}/openai/deployments?api-version=${encodeURIComponent(apiVersion)}`;
+        const depRes = await axios.get(depUrl, { headers, timeout: 10000 });
+        const value = depRes.data?.value || depRes.data?.data || [];
+        if (Array.isArray(value) && value.length > 0) {
+          return value.map((d: any) => ({
+            id: d.id || d.name,
+            name: d.id || d.name,
+            model: d.model?.name || d.model || undefined,
+          }));
+        }
+      } catch (depErr) {
+        // Fallback to models endpoint below
+      }
+
+      // Fallback: list base models (admin must create a deployment with one of these)
+      const modelsUrl = `${cleanBaseURL}/openai/models?api-version=${encodeURIComponent(apiVersion)}`;
+      const modelsRes = await axios.get(modelsUrl, { headers, timeout: 10000 });
+      const items = modelsRes.data?.data || modelsRes.data?.value || modelsRes.data?.models || [];
+      return items.map((m: any) => {
+        const id = m.id || m.name || m.model || 'unknown';
+        return { id, name: id };
+      });
+    } catch (error: any) {
+      console.error('Fetch Azure models error:', error);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error('Invalid token or unauthorized access');
+      }
+      throw new Error(`Failed to fetch Azure models: ${error.message}`);
+    }
+  }
+
   static async testConfiguration(config: any): Promise<string> {
     const testMessage = "Hello! This is a test message to verify the LLM configuration is working correctly. Please respond with a brief confirmation.";
     
@@ -457,6 +504,8 @@ export class ConfigService {
         return await this.testOpenAIConfig(testMessage, config);
       } else if (config.type === 'ollama') {
         return await this.testOllamaConfig(testMessage, config);
+      } else if (config.type === 'azure') {
+        return await this.testAzureConfig(testMessage, config);
       } else {
         throw new Error('Unsupported LLM type for testing');
       }
@@ -568,6 +617,45 @@ export class ConfigService {
       } else {
         throw new Error(`Ollama error: ${error.message}`);
       }
+    }
+  }
+
+  private static async testAzureConfig(message: string, config: any): Promise<string> {
+    try {
+      if (!config.endpoint) throw new Error('Base URL is required for Azure configuration');
+      if (!config.api_version) throw new Error('API version is required for Azure configuration');
+      if (!config.api_key) throw new Error('Token is required for Azure configuration');
+
+      const cleanBaseURL = config.endpoint.replace(/\/$/, '');
+      const url = `${cleanBaseURL}/openai/deployments/${encodeURIComponent(config.model)}/chat/completions?api-version=${encodeURIComponent(config.api_version)}`;
+
+      const response = await axios.post(url, {
+        messages: [
+          { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
+          { role: 'user', content: message },
+        ],
+        max_tokens: config.max_tokens || 150,
+        temperature: config.temperature || 0.7,
+        top_p: 1,
+        model: config.model,
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.api_key}`,
+        },
+        timeout: 30000,
+      });
+
+      const content = response.data?.choices?.[0]?.message?.content;
+      return content || 'Test completed but no response received';
+    } catch (error: any) {
+      console.error('Azure test error:', error);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error('Invalid token - Authentication failed');
+      } else if (error.response?.status === 404) {
+        throw new Error('Deployment/model not found - Check the model name');
+      }
+      throw new Error(`Azure error: ${error.message}`);
     }
   }
 }

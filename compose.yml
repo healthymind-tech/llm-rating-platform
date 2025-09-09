@@ -134,10 +134,14 @@ services:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      "mc alias set local http://minio:9000 minioadmin minioadmin &&
-       mc mb -p local/chat-uploads || true &&
-       mc anonymous set download local/chat-uploads || true &&
-       echo 'MinIO bucket chat-uploads ready'"
+      "mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1 || true;
+       if ! mc ls local/chat-uploads >/dev/null 2>&1; then
+         mc mb -p local/chat-uploads &&
+         mc anonymous set download local/chat-uploads &&
+         echo 'MinIO bucket chat-uploads ready';
+       else
+         echo 'MinIO bucket chat-uploads already exists';
+       fi"
     restart: "no"
 
 volumes:

@@ -375,7 +375,7 @@ export const ChatHistoryViewer: React.FC = () => {
                   }}
                 >
                   <img
-                    src={/^https?:\/\//.test(image) ? image : `data:image/jpeg;base64,${image}`}
+                    src={/^(https?:\/\/|\/|data:|blob:)/.test(image) ? image : `data:image/jpeg;base64,${image}`}
                     alt={`Message image ${imgIndex + 1}`}
                     style={{
                       width: '80px',
@@ -383,7 +383,7 @@ export const ChatHistoryViewer: React.FC = () => {
                       objectFit: 'cover',
                       cursor: 'pointer'
                     }}
-                    onClick={() => handleImageClick(/^https?:\/\//.test(image) ? image : `data:image/jpeg;base64,${image}`)}
+                    onClick={() => handleImageClick(/^(https?:\/\/|\/|data:|blob:)/.test(image) ? image : `data:image/jpeg;base64,${image}`)}
                   />
                 </Box>
               ))}
@@ -1041,7 +1041,7 @@ export const ChatHistoryViewer: React.FC = () => {
                                       }}
                                     >
                                       <img
-                                        src={`data:image/jpeg;base64,${image}`}
+                                        src={/^(https?:\/\/|\/|data:|blob:)/.test(image) ? image : `data:image/jpeg;base64,${image}`}
                                         alt={`Message image ${imgIndex + 1}`}
                                         style={{
                                           width: '40px',
@@ -1049,7 +1049,7 @@ export const ChatHistoryViewer: React.FC = () => {
                                           objectFit: 'cover',
                                           cursor: 'pointer'
                                         }}
-                                        onClick={() => handleImageClick(`data:image/jpeg;base64,${image}`)}
+                                        onClick={() => handleImageClick(/^(https?:\/\/|\/|data:|blob:)/.test(image) ? image : `data:image/jpeg;base64,${image}`)}
                                       />
                                     </Box>
                                   ))}
