@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  IconButton,
   FormControl,
   InputLabel,
   Select,
@@ -23,11 +24,12 @@ import {
   Collapse,
   Container,
   Chip,
+  InputAdornment,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings, Language, Tune, Star } from '@mui/icons-material';
+import { Delete, Edit, Add, Dashboard, History, PlayArrow, CheckCircle, Error, People, Settings, Language, Tune, Star, Visibility, VisibilityOff } from '@mui/icons-material';
 import { User, LLMConfig, SystemSetting } from '../types';
 import { authAPI, configAPI, systemSettingsAPI } from '../services/api';
 import { useLanguage } from '../hooks/useLanguage';
@@ -124,6 +126,7 @@ export const AdminDashboard: React.FC = () => {
   const [testingConfig, setTestingConfig] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; response?: string } | null>(null);
   const [systemSettings, setSystemSettings] = useState<SystemSetting[]>([]);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     fetchUsersWithUsage();
@@ -365,12 +368,13 @@ export const AdminDashboard: React.FC = () => {
           onClick={() => {
             setSelectedConfig({
               ...params.row, 
-              apiKey: '',
+              apiKey: params.row.apiKey,
               systemPrompt: params.row.systemPrompt || '',
               temperature: params.row.temperature?.toString() || '0.7',
               maxTokens: params.row.maxTokens?.toString() || '1000',
               repetitionPenalty: params.row.repetitionPenalty?.toString() || '1.0'
             });
+            setShowApiKey(false);
             setConfigDialogOpen(true);
           }}
         />,
@@ -731,7 +735,7 @@ export const AdminDashboard: React.FC = () => {
                 <Button
                   variant="contained"
                   startIcon={<Add />}
-                  onClick={() => setConfigDialogOpen(true)}
+                  onClick={() => { setShowApiKey(false); setConfigDialogOpen(true); }}
                   sx={{ 
                     borderRadius: theme.custom.borderRadius.medium,
                     px: 3,
@@ -840,7 +844,7 @@ export const AdminDashboard: React.FC = () => {
 
       <Dialog 
         open={configDialogOpen} 
-        onClose={() => setConfigDialogOpen(false)} 
+        onClose={() => { setConfigDialogOpen(false); setShowApiKey(false); }} 
         maxWidth="md" 
         fullWidth
         PaperProps={{
@@ -893,15 +897,28 @@ export const AdminDashboard: React.FC = () => {
             <TextField
               fullWidth
               label="API Key"
-              type="password"
-              value={selectedConfig ? (selectedConfig.apiKey ? '••••••••••••••••••••' : '') : newConfig.apiKey}
+              type={showApiKey ? 'text' : 'password'}
+              value={selectedConfig ? (selectedConfig.apiKey || '') : newConfig.apiKey}
               onChange={(e) => selectedConfig 
                 ? setSelectedConfig({...selectedConfig, apiKey: e.target.value})
                 : setNewConfig({...newConfig, apiKey: e.target.value})
               }
               margin="normal"
-              placeholder={selectedConfig ? "Enter new API key (leave blank to keep current)" : "Enter your API key"}
-              helperText={selectedConfig ? "For security, the current API key is hidden. Enter a new key to update it." : undefined}
+              placeholder={selectedConfig ? "Enter API key" : "Enter your API key"}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                      onClick={() => setShowApiKey((s) => !s)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      edge="end"
+                    >
+                      {showApiKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
             />
           )}
           {(selectedConfig?.type === 'openai' || newConfig.type === 'openai') ? (
