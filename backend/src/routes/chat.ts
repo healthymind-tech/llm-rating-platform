@@ -46,11 +46,13 @@ router.get('/sessions/:sessionId/messages', authenticateToken, async (req: AuthR
 router.post('/sessions/:sessionId/messages', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { sessionId } = req.params;
-    const { message, images } = req.body as { message: string; images?: string[] };
+    const { message, images } = req.body as { message?: string; images?: string[] };
     const userId = req.user!.userId;
 
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json({ error: 'Message is required' });
+    const hasMessage = typeof message === 'string' && message.trim().length > 0;
+    const hasImages = Array.isArray(images) && images.length > 0;
+    if (!hasMessage && !hasImages) {
+      return res.status(400).json({ error: 'Message or images are required' });
     }
 
     // Save user message
@@ -67,10 +69,11 @@ router.post('/sessions/:sessionId/messages', authenticateToken, async (req: Auth
       }
     }
 
-    const userMessage = await ChatService.saveMessage(sessionId, userId, 'user', message, 0, 0, undefined, imageUrls);
+    const userMessage = await ChatService.saveMessage(sessionId, userId, 'user', hasMessage ? message! : '', 0, 0, undefined, imageUrls);
 
     // Get AI response
-    const aiResult = await ChatService.sendMessageToLLM(message, sessionId, userId);
+    const textForLLM = hasMessage ? message! : '';
+    const aiResult = await ChatService.sendMessageToLLM(textForLLM, sessionId, userId);
 
     // Extract token usage
     const inputTokens = aiResult.tokenUsage?.inputTokens || 0;
@@ -92,10 +95,11 @@ router.post('/sessions/:sessionId/messages', authenticateToken, async (req: Auth
 // Simple chat endpoint for direct messaging (creates session if needed)
 router.post('/message', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const { message, sessionId } = req.body;
+    const { message, sessionId } = req.body as { message?: string; sessionId?: string };
     const userId = req.user!.userId;
 
-    if (!message || typeof message !== 'string') {
+    const hasMessage = typeof message === 'string' && message.trim().length > 0;
+    if (!hasMessage) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
@@ -108,7 +112,7 @@ router.post('/message', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     // Save user message
-    await ChatService.saveMessage(currentSessionId, userId, 'user', message);
+    await ChatService.saveMessage(currentSessionId, userId, 'user', message!);
 
     // Get AI response
     const aiResult = await ChatService.sendMessageToLLM(message, currentSessionId, userId);
@@ -134,11 +138,13 @@ router.post('/message', authenticateToken, async (req: AuthRequest, res) => {
 // Streaming chat endpoint
 router.post('/message/stream', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const { message, sessionId, images } = req.body as { message: string; sessionId?: string; images?: string[] };
+    const { message, sessionId, images } = req.body as { message?: string; sessionId?: string; images?: string[] };
     const userId = req.user!.userId;
 
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json({ error: 'Message is required' });
+    const hasMessage = typeof message === 'string' && message.trim().length > 0;
+    const hasImages = Array.isArray(images) && images.length > 0;
+    if (!hasMessage && !hasImages) {
+      return res.status(400).json({ error: 'Message or images are required' });
     }
 
     // Set SSE headers
@@ -171,17 +177,18 @@ router.post('/message/stream', authenticateToken, async (req: AuthRequest, res) 
     }
 
     // Save user message (with images, if any)
-    await ChatService.saveMessage(currentSessionId, userId, 'user', message, 0, 0, undefined, imageUrls);
+    await ChatService.saveMessage(currentSessionId, userId, 'user', hasMessage ? message! : '', 0, 0, undefined, imageUrls);
 
     // Send session info first
     res.write(`data: ${JSON.stringify({ sessionId: currentSessionId, type: 'session' })}\n\n`);
 
     try {
       // Get AI response with streaming
-      const aiResult = await ChatService.sendMessageToLLMStream(message, currentSessionId, userId, res);
+      const textForLLM = hasMessage ? message! : '';
+      const aiResult = await ChatService.sendMessageToLLMStream(textForLLM, currentSessionId, userId, res);
 
-      // For streaming, estimate tokens since we don't get usage from OpenAI streaming API
-      const inputTokens = Math.ceil(message.length / 4); // Simple estimation
+      // For streaming, estimate tokens since we don't get usage directly
+      const inputTokens = Math.ceil(textForLLM.length / 4); // Simple estimation
       const outputTokens = Math.ceil(aiResult.response.length / 4);
 
       // Save AI response with estimated token tracking and model info

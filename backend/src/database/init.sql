@@ -12,9 +12,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE llm_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('openai', 'ollama')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('openai', 'ollama', 'azure')),
     api_key TEXT,
     endpoint VARCHAR(255),
+    api_version VARCHAR(50),
+    -- For Azure: deployment name separate from base model
+    deployment VARCHAR(100),
     model VARCHAR(100) NOT NULL,
     temperature DECIMAL(3,2) DEFAULT 0.7 CHECK (temperature >= 0 AND temperature <= 2),
     max_tokens INTEGER DEFAULT 2048 CHECK (max_tokens > 0),

@@ -108,9 +108,11 @@ export const AdminDashboard: React.FC = () => {
 
   const [newConfig, setNewConfig] = useState({
     name: '',
-    type: 'openai' as 'openai' | 'ollama',
+    type: 'openai' as 'openai' | 'ollama' | 'azure',
     apiKey: '',
     endpoint: 'https://api.openai.com/v1',
+    apiVersion: '',
+    deployment: '',
     model: '',
     temperature: '0.7',
     maxTokens: '1000',
@@ -203,9 +205,34 @@ export const AdminDashboard: React.FC = () => {
       return;
     }
 
+    if (currentConfig.type === 'azure') {
+      if (!currentConfig.endpoint) { alert('Please provide the Azure base URL'); return; }
+      if (!currentConfig.apiVersion) { alert('Please provide the Azure API version'); return; }
+      if (!currentConfig.apiKey) { alert('Please provide the Azure token'); return; }
+    }
+
     setFetchingModels(true);
     try {
-      const models = await configAPI.fetchModels(currentConfig.type, currentConfig.endpoint, currentConfig.apiKey);
+      const models = await configAPI.fetchModels(currentConfig.type, currentConfig.endpoint, currentConfig.apiKey, (currentConfig as any).apiVersion);
+      // Non-Azure: this populates models
+      setAvailableModels(models);
+    } catch (error: any) {
+      console.error('Failed to fetch models:', error);
+      alert(`Failed to fetch models: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setFetchingModels(false);
+    }
+  };
+
+  const fetchAzureModels = async () => {
+    const currentConfig = selectedConfig || newConfig;
+    if (!currentConfig.endpoint) { alert('Please provide the Azure base URL'); return; }
+    if (!currentConfig.apiVersion) { alert('Please provide the Azure API version'); return; }
+    if (!currentConfig.apiKey) { alert('Please provide the Azure token'); return; }
+
+    setFetchingModels(true);
+    try {
+      const models = await configAPI.fetchModels('azure', currentConfig.endpoint, currentConfig.apiKey, (currentConfig as any).apiVersion, 'models');
       setAvailableModels(models);
     } catch (error: any) {
       console.error('Failed to fetch models:', error);
@@ -218,8 +245,12 @@ export const AdminDashboard: React.FC = () => {
   const testConfiguration = async () => {
     const currentConfig = selectedConfig || newConfig;
     
-    if (!currentConfig.model) {
+    if ((currentConfig.type !== 'azure') && !currentConfig.model) {
       alert('Please select or enter a model name first');
+      return;
+    }
+    if (currentConfig.type === 'azure' && !(currentConfig as any).deployment && !currentConfig.model) {
+      alert('Please select or enter an Azure deployment name');
       return;
     }
 
@@ -228,6 +259,10 @@ export const AdminDashboard: React.FC = () => {
     } else if (currentConfig.type === 'ollama' && !currentConfig.endpoint) {
       alert('Please enter an endpoint URL for Ollama configuration');
       return;
+    } else if (currentConfig.type === 'azure') {
+      if (!currentConfig.endpoint) { alert('Please enter a base URL for Azure configuration'); return; }
+      if (!(currentConfig as any).apiVersion) { alert('Please enter API version for Azure configuration'); return; }
+      if (!currentConfig.apiKey) { alert('Please enter a token for Azure configuration'); return; }
     }
 
     setTestingConfig(true);
@@ -238,6 +273,8 @@ export const AdminDashboard: React.FC = () => {
         type: currentConfig.type,
         api_key: currentConfig.apiKey,
         endpoint: currentConfig.endpoint,
+        api_version: (currentConfig as any).apiVersion,
+        deployment: (currentConfig as any).deployment,
         model: currentConfig.model,
         temperature: typeof currentConfig.temperature === 'string' ? parseFloat(currentConfig.temperature) : currentConfig.temperature,
         max_tokens: typeof currentConfig.maxTokens === 'string' ? parseInt(currentConfig.maxTokens) : currentConfig.maxTokens,
@@ -369,6 +406,7 @@ export const AdminDashboard: React.FC = () => {
             setSelectedConfig({
               ...params.row, 
               apiKey: params.row.apiKey,
+              apiVersion: (params.row as any).apiVersion || '',
               systemPrompt: params.row.systemPrompt || '',
               temperature: params.row.temperature?.toString() || '0.7',
               maxTokens: params.row.maxTokens?.toString() || '1000',
@@ -442,6 +480,10 @@ export const AdminDashboard: React.FC = () => {
           type: selectedConfig.type,
           apiKey: selectedConfig.apiKey,
           endpoint: selectedConfig.endpoint,
+          // @ts-ignore include azure-specific field
+          apiVersion: (selectedConfig as any).apiVersion,
+          // @ts-ignore include azure-specific field
+          deployment: (selectedConfig as any).deployment,
           model: selectedConfig.model,
           temperature: typeof selectedConfig.temperature === 'string' ? parseFloat(selectedConfig.temperature) : selectedConfig.temperature,
           maxTokens: typeof selectedConfig.maxTokens === 'string' ? parseInt(selectedConfig.maxTokens) : selectedConfig.maxTokens,
@@ -457,6 +499,10 @@ export const AdminDashboard: React.FC = () => {
           type: newConfig.type,
           apiKey: newConfig.apiKey,
           endpoint: newConfig.endpoint,
+          // @ts-ignore include azure-specific field
+          apiVersion: (newConfig as any).apiVersion,
+          // @ts-ignore include azure-specific field
+          deployment: (newConfig as any).deployment,
           model: newConfig.model,
           temperature: typeof newConfig.temperature === 'string' && newConfig.temperature !== '' ? parseFloat(newConfig.temperature) : 0.7,
           maxTokens: typeof newConfig.maxTokens === 'string' && newConfig.maxTokens !== '' ? parseInt(newConfig.maxTokens) : 1000,
@@ -477,6 +523,8 @@ export const AdminDashboard: React.FC = () => {
         type: 'openai',
         apiKey: '',
         endpoint: 'https://api.openai.com/v1',
+        apiVersion: '',
+        deployment: '',
         model: '',
         temperature: '0.7',
         maxTokens: '1000',
@@ -877,26 +925,58 @@ export const AdminDashboard: React.FC = () => {
             >
               <MenuItem value="openai">OpenAI</MenuItem>
               <MenuItem value="ollama">Ollama</MenuItem>
+              <MenuItem value="azure">Azure</MenuItem>
             </Select>
           </FormControl>
           <TextField
             fullWidth
-            label="Endpoint URL"
-            value={selectedConfig?.endpoint || newConfig.endpoint || ((selectedConfig?.type === 'openai' || newConfig.type === 'openai') ? 'https://api.openai.com/v1' : '')}
+            label={(selectedConfig?.type || newConfig.type) === 'azure' ? 'Base URL' : 'Endpoint URL'}
+            value={selectedConfig?.endpoint || newConfig.endpoint || (((selectedConfig?.type === 'openai' || newConfig.type === 'openai')) ? 'https://api.openai.com/v1' : '')}
             onChange={(e) => selectedConfig 
               ? setSelectedConfig({...selectedConfig, endpoint: e.target.value})
               : setNewConfig({...newConfig, endpoint: e.target.value})
             }
             margin="normal"
-            helperText={(selectedConfig?.type === 'openai' || newConfig.type === 'openai') 
-              ? "For OpenAI use: https://api.openai.com/v1, for other providers use their compatible endpoint"
-              : "Enter the Ollama server endpoint URL (e.g., http://localhost:11434)"
+            helperText={
+              (selectedConfig?.type === 'openai' || newConfig.type === 'openai')
+                ? 'For OpenAI use: https://api.openai.com/v1, for other providers use their compatible endpoint'
+                : (selectedConfig?.type === 'ollama' || newConfig.type === 'ollama')
+                  ? 'Enter the Ollama server endpoint URL (e.g., http://localhost:11434)'
+                  : 'Enter your Azure base URL (e.g., https://your-resource-name.openai.azure.com)'
             }
           />
-          {(selectedConfig?.type === 'openai' || newConfig.type === 'openai') && (
+          {(selectedConfig?.type === 'azure' || newConfig.type === 'azure') && (
             <TextField
               fullWidth
-              label="API Key"
+              label="API Version"
+              value={selectedConfig?.apiVersion || newConfig.apiVersion || ''}
+              onChange={(e) => selectedConfig
+                ? setSelectedConfig({ ...selectedConfig, apiVersion: e.target.value })
+                : setNewConfig({ ...newConfig, apiVersion: e.target.value })
+              }
+              margin="normal"
+              placeholder="e.g., 2024-02-01"
+              helperText="Azure OpenAI API version (e.g., 2024-02-01)"
+            />
+          )}
+          {(selectedConfig?.type === 'azure' || newConfig.type === 'azure') && (
+            <TextField
+              fullWidth
+              label="Deployment"
+              value={(selectedConfig as any)?.deployment || (newConfig as any).deployment || ''}
+              onChange={(e) => selectedConfig
+                ? setSelectedConfig({ ...(selectedConfig as any), deployment: e.target.value })
+                : setNewConfig({ ...(newConfig as any), deployment: e.target.value })
+              }
+              margin="normal"
+              placeholder="Your Azure deployment name"
+              helperText="Azure deployment name (used in the URL path)"
+            />
+          )}
+          {(selectedConfig?.type === 'openai' || newConfig.type === 'openai' || selectedConfig?.type === 'azure' || newConfig.type === 'azure') && (
+            <TextField
+              fullWidth
+              label={(selectedConfig?.type === 'azure' || newConfig.type === 'azure') ? 'Token' : 'API Key'}
               type={showApiKey ? 'text' : 'password'}
               value={selectedConfig ? (selectedConfig.apiKey || '') : newConfig.apiKey}
               onChange={(e) => selectedConfig 
@@ -904,12 +984,12 @@ export const AdminDashboard: React.FC = () => {
                 : setNewConfig({...newConfig, apiKey: e.target.value})
               }
               margin="normal"
-              placeholder={selectedConfig ? "Enter API key" : "Enter your API key"}
+              placeholder={selectedConfig ? ((selectedConfig.type === 'azure') ? 'Enter token' : 'Enter API key') : ((newConfig.type === 'azure') ? 'Enter token' : 'Enter your API key')}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
-                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                      aria-label={showApiKey ? 'Hide token' : 'Show token'}
                       onClick={() => setShowApiKey((s) => !s)}
                       onMouseDown={(e) => e.preventDefault()}
                       edge="end"
@@ -921,22 +1001,52 @@ export const AdminDashboard: React.FC = () => {
               }}
             />
           )}
-          {(selectedConfig?.type === 'openai' || newConfig.type === 'openai') ? (
+          {(selectedConfig?.type === 'openai' || newConfig.type === 'openai' || selectedConfig?.type === 'azure' || newConfig.type === 'azure' || selectedConfig?.type === 'ollama' || newConfig.type === 'ollama') ? (
             <Box sx={{ mt: 2, mb: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                <Button
-                  variant="outlined"
-                  onClick={fetchModels}
-                  disabled={fetchingModels || !((selectedConfig?.apiKey || newConfig.apiKey) || (selectedConfig?.endpoint || newConfig.endpoint))}
-                  startIcon={fetchingModels ? <CircularProgress size={20} /> : null}
-                >
-                  {fetchingModels ? 'Fetching...' : 'Fetch Models'}
-                </Button>
-                <Typography variant="body2" color="textSecondary">
-                  Click to load available models (requires API key or local endpoint)
-                </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>
+                {((selectedConfig?.type || newConfig.type) === 'azure') ? (
+                  <>
+                    <Button
+                      variant="outlined"
+                      onClick={fetchAzureModels}
+                      disabled={(() => {
+                        const endpoint = selectedConfig?.endpoint || newConfig.endpoint;
+                        const apiKey = selectedConfig?.apiKey || newConfig.apiKey;
+                        const apiVersion = (selectedConfig as any)?.apiVersion || (newConfig as any).apiVersion;
+                        return fetchingModels || !(endpoint && apiKey && apiVersion);
+                      })()}
+                      startIcon={fetchingModels ? <CircularProgress size={20} /> : null}
+                    >
+                      {fetchingModels ? 'Fetching...' : 'Fetch Models'}
+                    </Button>
+                    <Typography variant="body2" color="textSecondary">
+                      Azure: Deployment is entered above; this fetches base models (optional).
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outlined"
+                      onClick={fetchModels}
+                      disabled={(() => {
+                        const type = selectedConfig?.type || newConfig.type;
+                        const endpoint = selectedConfig?.endpoint || newConfig.endpoint;
+                        const apiKey = selectedConfig?.apiKey || newConfig.apiKey;
+                        if (fetchingModels) return true;
+                        if (type === 'openai') return !((apiKey) || endpoint);
+                        if (type === 'ollama') return !endpoint;
+                        return true;
+                      })()}
+                      startIcon={fetchingModels ? <CircularProgress size={20} /> : null}
+                    >
+                      {fetchingModels ? 'Fetching...' : 'Fetch Models'}
+                    </Button>
+                    <Typography variant="body2" color="textSecondary">
+                      Click to load available models (requires valid credentials)
+                    </Typography>
+                  </>
+                )}
               </Box>
-              
               {availableModels.length > 0 ? (
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Model</InputLabel>
@@ -955,21 +1065,17 @@ export const AdminDashboard: React.FC = () => {
                             <Typography variant="body2" fontWeight="bold">
                               {model.name || model.id}
                             </Typography>
-                            {/* Show different info based on model type */}
                             {model.owned_by ? (
-                              // OpenAI model
                               <Typography variant="caption" color="textSecondary">
                                 {model.owned_by}
                               </Typography>
                             ) : model.family ? (
-                              // Ollama model
                               <Typography variant="caption" color="textSecondary">
                                 {model.family} • {model.parameter_size} • {model.quantization}
                                 {model.size && ` • ${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
                               </Typography>
                             ) : null}
                           </Box>
-                          {/* Show loading status for Ollama models */}
                           {model.isLoaded !== undefined && (
                             <Chip
                               size="small"
@@ -997,6 +1103,8 @@ export const AdminDashboard: React.FC = () => {
                   helperText="Enter model name manually or fetch available models"
                 />
               )}
+
+              {/* No deployments fetching UI; deployment is a text field above for Azure */}
             </Box>
           ) : (
             <TextField
@@ -1117,7 +1225,16 @@ export const AdminDashboard: React.FC = () => {
             <Button
               variant="outlined"
               onClick={testConfiguration}
-              disabled={testingConfig || !((selectedConfig?.model || newConfig.model))}
+              disabled={(() => {
+                if (testingConfig) return true;
+                const type = selectedConfig?.type || newConfig.type;
+                if (type === 'azure') {
+                  const dep = (selectedConfig as any)?.deployment || (newConfig as any).deployment;
+                  const model = selectedConfig?.model || newConfig.model;
+                  return !(dep || model);
+                }
+                return !((selectedConfig?.model || newConfig.model));
+              })()}
               startIcon={testingConfig ? <CircularProgress size={20} /> : <PlayArrow />}
               sx={{ mb: 2 }}
             >

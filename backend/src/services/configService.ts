@@ -53,8 +53,8 @@ export class ConfigService {
 
       const result = await pool.query(
         `INSERT INTO llm_configs 
-         (id, name, type, api_key, endpoint, api_version, model, temperature, max_tokens, system_prompt, repetition_penalty, supports_vision, is_enabled, is_default) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
+         (id, name, type, api_key, endpoint, api_version, deployment, model, temperature, max_tokens, system_prompt, repetition_penalty, supports_vision, is_enabled, is_default) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
          RETURNING *`,
         [
           configId,
@@ -63,6 +63,7 @@ export class ConfigService {
           configData.api_key,
           configData.endpoint,
           (configData as any).api_version || null,
+          (configData as any).deployment || null,
           configData.model,
           configData.temperature,
           configData.max_tokens,
@@ -386,13 +387,13 @@ export class ConfigService {
     }
   }
 
-  static async fetchModels(type: string, endpoint: string, apiKey?: string, apiVersion?: string): Promise<any[]> {
+  static async fetchModels(type: string, endpoint: string, apiKey?: string, apiVersion?: string, azureList?: 'deployments' | 'models'): Promise<any[]> {
     if (type === 'ollama') {
       return await this.fetchOllamaModels(endpoint);
     } else if (type === 'openai') {
       return await this.fetchOpenAIModels(apiKey || '', endpoint);
     } else if (type === 'azure') {
-      return await this.fetchAzureModels(endpoint, apiKey || '', apiVersion || '');
+      return await this.fetchAzureModels(endpoint, apiKey || '', apiVersion || '', azureList);
     } else {
       throw new Error(`Unsupported model type: ${type}`);
     }
@@ -452,7 +453,7 @@ export class ConfigService {
     }
   }
 
-  static async fetchAzureModels(baseURL: string, apiKey: string, apiVersion: string): Promise<any[]> {
+  static async fetchAzureModels(baseURL: string, apiKey: string, apiVersion: string, list: 'deployments' | 'models' = 'deployments'): Promise<any[]> {
     try {
       if (!baseURL) throw new Error('Base URL is required for Azure');
       if (!apiVersion) throw new Error('API version is required for Azure');
@@ -463,30 +464,24 @@ export class ConfigService {
       const isBearer = apiKey.includes('.') && apiKey.split('.').length >= 3;
       const headers: any = isBearer ? { 'Authorization': `Bearer ${apiKey}` } : { 'api-key': apiKey };
 
-      // Prefer listing deployments (what Azure requires for chat)
-      try {
+      if (list === 'deployments') {
         const depUrl = `${cleanBaseURL}/openai/deployments?api-version=${encodeURIComponent(apiVersion)}`;
         const depRes = await axios.get(depUrl, { headers, timeout: 10000 });
         const value = depRes.data?.value || depRes.data?.data || [];
-        if (Array.isArray(value) && value.length > 0) {
-          return value.map((d: any) => ({
-            id: d.id || d.name,
-            name: d.id || d.name,
-            model: d.model?.name || d.model || undefined,
-          }));
-        }
-      } catch (depErr) {
-        // Fallback to models endpoint below
+        return (Array.isArray(value) ? value : []).map((d: any) => ({
+          id: d.id || d.name,
+          name: d.id || d.name,
+          model: d.model?.name || d.model || undefined,
+        }));
+      } else {
+        const modelsUrl = `${cleanBaseURL}/openai/models?api-version=${encodeURIComponent(apiVersion)}`;
+        const modelsRes = await axios.get(modelsUrl, { headers, timeout: 10000 });
+        const items = modelsRes.data?.data || modelsRes.data?.value || modelsRes.data?.models || [];
+        return (Array.isArray(items) ? items : []).map((m: any) => {
+          const id = m.id || m.name || m.model || 'unknown';
+          return { id, name: id };
+        });
       }
-
-      // Fallback: list base models (admin must create a deployment with one of these)
-      const modelsUrl = `${cleanBaseURL}/openai/models?api-version=${encodeURIComponent(apiVersion)}`;
-      const modelsRes = await axios.get(modelsUrl, { headers, timeout: 10000 });
-      const items = modelsRes.data?.data || modelsRes.data?.value || modelsRes.data?.models || [];
-      return items.map((m: any) => {
-        const id = m.id || m.name || m.model || 'unknown';
-        return { id, name: id };
-      });
     } catch (error: any) {
       console.error('Fetch Azure models error:', error);
       if (error.response?.status === 401 || error.response?.status === 403) {
@@ -627,9 +622,11 @@ export class ConfigService {
       if (!config.api_key) throw new Error('Token is required for Azure configuration');
 
       const cleanBaseURL = config.endpoint.replace(/\/$/, '');
-      const url = `${cleanBaseURL}/openai/deployments/${encodeURIComponent(config.model)}/chat/completions?api-version=${encodeURIComponent(config.api_version)}`;
+      const deployment = config.deployment || config.model;
+      if (!deployment) throw new Error('Deployment is required for Azure configuration');
+      const url = `${cleanBaseURL}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(config.api_version)}`;
 
-      const response = await axios.post(url, {
+      const body: any = {
         messages: [
           { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
           { role: 'user', content: message },
@@ -637,12 +634,19 @@ export class ConfigService {
         max_tokens: config.max_tokens || 150,
         temperature: config.temperature || 0.7,
         top_p: 1,
-        model: config.model,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.api_key}`,
-        },
+      };
+      if (config.model) body.model = config.model;
+
+      const headers = (() => {
+        const apiKey = config.api_key as string;
+        const isBearer = apiKey && apiKey.includes('.') && apiKey.split('.').length >= 3;
+        return isBearer
+          ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }
+          : { 'Content-Type': 'application/json', 'api-key': apiKey };
+      })();
+
+      const response = await axios.post(url, body, {
+        headers,
         timeout: 30000,
       });
 

@@ -100,6 +100,7 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
       type,
       api_key,
       endpoint,
+      deployment,
       model,
       temperature,
       max_tokens,
@@ -111,12 +112,12 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
     } = req.body;
 
     // Validation
-    if (!name || !type || !model) {
-      return res.status(400).json({ error: 'Name, type, and model are required' });
+    if (!name || !type) {
+      return res.status(400).json({ error: 'Name and type are required' });
     }
 
-    if (!['openai', 'ollama'].includes(type)) {
-      return res.status(400).json({ error: 'Type must be either "openai" or "ollama"' });
+    if (!['openai', 'ollama', 'azure'].includes(type)) {
+      return res.status(400).json({ error: 'Type must be one of "openai", "ollama", or "azure"' });
     }
 
     // API key is now optional for local services
@@ -130,6 +131,15 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
 
     if (type === 'ollama' && !endpoint) {
       return res.status(400).json({ error: 'Endpoint is required for Ollama configurations' });
+    }
+
+    if (type === 'azure') {
+      if (!endpoint) return res.status(400).json({ error: 'Base URL is required for Azure configurations' });
+      if (!api_key) return res.status(400).json({ error: 'Token is required for Azure configurations' });
+      if (!req.body.api_version) return res.status(400).json({ error: 'API version is required for Azure configurations' });
+      if (!deployment) return res.status(400).json({ error: 'Deployment is required for Azure configurations' });
+    } else {
+      if (!model) return res.status(400).json({ error: 'Model is required for non-Azure configurations' });
     }
 
     if (temperature !== undefined) {
@@ -151,6 +161,8 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
       type,
       api_key: api_key || null,
       endpoint: endpoint || (type === 'openai' ? 'https://api.openai.com/v1' : null),
+      api_version: req.body.api_version || null,
+      deployment: deployment || null,
       model,
       temperature: temperature ? parseFloat(temperature) : 0.7,
       max_tokens: max_tokens ? parseInt(max_tokens) : 2048,
@@ -178,6 +190,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       type,
       api_key,
       endpoint,
+      deployment,
       model,
       temperature,
       max_tokens,
@@ -192,14 +205,16 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
     
     if (name !== undefined) updates.name = name;
     if (type !== undefined) {
-      if (!['openai', 'ollama'].includes(type)) {
-        return res.status(400).json({ error: 'Type must be either "openai" or "ollama"' });
+      if (!['openai', 'ollama', 'azure'].includes(type)) {
+        return res.status(400).json({ error: 'Type must be one of "openai", "ollama", or "azure"' });
       }
       updates.type = type;
     }
     if (api_key !== undefined && api_key !== '') updates.api_key = api_key;
     if (endpoint !== undefined) updates.endpoint = endpoint;
+    if (deployment !== undefined) updates.deployment = deployment;
     if (model !== undefined) updates.model = model;
+    if (req.body.api_version !== undefined) updates.api_version = req.body.api_version || null;
     if (temperature !== undefined) {
       const tempNum = parseFloat(temperature);
       if (isNaN(tempNum) || tempNum < 0 || tempNum > 2) {
@@ -265,10 +280,10 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, 
 // Fetch available models from LLM APIs (admin only)
 router.post('/fetch-models', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { type, api_key, endpoint } = req.body;
+    const { type, api_key, endpoint, api_version, azure_list } = req.body;
 
     if (!type) {
-      return res.status(400).json({ error: 'LLM type (openai/ollama) is required' });
+      return res.status(400).json({ error: 'LLM type (openai/ollama/azure) is required' });
     }
 
     if (!endpoint) {
@@ -279,7 +294,12 @@ router.post('/fetch-models', authenticateToken, requireAdmin, async (req: AuthRe
       return res.status(400).json({ error: 'API key is required for OpenAI' });
     }
 
-    const models = await ConfigService.fetchModels(type, endpoint, api_key);
+    if (type === 'azure') {
+      if (!api_key) return res.status(400).json({ error: 'Token is required for Azure' });
+      if (!api_version) return res.status(400).json({ error: 'API version is required for Azure' });
+    }
+
+    const models = await ConfigService.fetchModels(type, endpoint, api_key, api_version, azure_list);
     
     res.json({ models });
   } catch (error: any) {
@@ -291,10 +311,10 @@ router.post('/fetch-models', authenticateToken, requireAdmin, async (req: AuthRe
 // Test LLM configuration (admin only)
 router.post('/test-config', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { type, api_key, endpoint, model, temperature, max_tokens } = req.body;
+    const { type, api_key, endpoint, model, temperature, max_tokens, api_version, deployment } = req.body;
 
-    if (!type || !model) {
-      return res.status(400).json({ error: 'Type and model are required' });
+    if (!type) {
+      return res.status(400).json({ error: 'Type is required' });
     }
 
     // Allow testing without API key for demo mode
@@ -306,10 +326,19 @@ router.post('/test-config', authenticateToken, requireAdmin, async (req: AuthReq
       return res.status(400).json({ error: 'Endpoint is required for Ollama configurations' });
     }
 
+    if (type === 'azure') {
+      if (!endpoint) return res.status(400).json({ error: 'Base URL is required for Azure configurations' });
+      if (!api_key) return res.status(400).json({ error: 'Token is required for Azure configurations' });
+      if (!api_version) return res.status(400).json({ error: 'API version is required for Azure configurations' });
+      if (!deployment && !model) return res.status(400).json({ error: 'Deployment is required for Azure configurations' });
+    }
+
     const testConfig = {
       type,
       api_key: api_key || null,
       endpoint: endpoint || (type === 'openai' ? 'https://api.openai.com/v1' : null),
+      api_version: api_version || null,
+      deployment: deployment || null,
       model,
       temperature: temperature ? parseFloat(temperature) : 0.7,
       max_tokens: max_tokens ? parseInt(max_tokens) : 150,

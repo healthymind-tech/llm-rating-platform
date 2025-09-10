@@ -212,6 +212,8 @@ export const configAPI = {
       type: config.type,
       apiKey: config.api_key,
       endpoint: config.endpoint,
+      apiVersion: config.api_version,
+      deployment: config.deployment,
       model: config.model,
       temperature: config.temperature,
       maxTokens: config.max_tokens,
@@ -239,6 +241,8 @@ export const configAPI = {
       type: configData.type,
       api_key: configData.apiKey,
       endpoint: configData.endpoint,
+      api_version: (configData as any).apiVersion,
+      deployment: (configData as any).deployment,
       model: configData.model,
       temperature: configData.temperature,
       max_tokens: configData.maxTokens,
@@ -259,6 +263,8 @@ export const configAPI = {
     if (updates.type !== undefined) backendUpdates.type = updates.type;
     if (updates.apiKey !== undefined && updates.apiKey !== '') backendUpdates.api_key = updates.apiKey;
     if (updates.endpoint !== undefined) backendUpdates.endpoint = updates.endpoint;
+    if ((updates as any).apiVersion !== undefined) backendUpdates.api_version = (updates as any).apiVersion;
+    if ((updates as any).deployment !== undefined) backendUpdates.deployment = (updates as any).deployment;
     if (updates.model !== undefined) backendUpdates.model = updates.model;
     if (updates.temperature !== undefined) backendUpdates.temperature = updates.temperature;
     if (updates.maxTokens !== undefined) backendUpdates.max_tokens = updates.maxTokens;
@@ -290,6 +296,8 @@ export const configAPI = {
       supportsVision: config.supports_vision || false,
       apiKey: config.api_key,
       endpoint: config.endpoint,
+      apiVersion: config.api_version,
+      deployment: config.deployment,
       model: config.model,
       temperature: config.temperature,
       maxTokens: config.max_tokens,
@@ -300,7 +308,7 @@ export const configAPI = {
     }));
   },
 
-  fetchModels: async (type: string, endpoint: string, apiKey?: string): Promise<any[]> => {
+  fetchModels: async (type: string, endpoint: string, apiKey?: string, apiVersion?: string, azureList?: 'deployments' | 'models'): Promise<any[]> => {
     const requestBody: any = {
       type,
       endpoint
@@ -308,6 +316,12 @@ export const configAPI = {
     
     if (apiKey) {
       requestBody.api_key = apiKey;
+    }
+    if (apiVersion) {
+      requestBody.api_version = apiVersion;
+    }
+    if (azureList) {
+      requestBody.azure_list = azureList;
     }
     
     const response = await api.post('/config/fetch-models', requestBody);
@@ -321,11 +335,15 @@ export const configAPI = {
     model: string;
     temperature?: number;
     max_tokens?: number;
+    api_version?: string;
+    deployment?: string;
   }): Promise<{ success: boolean; response?: string; message?: string; error?: string }> => {
     const response = await api.post('/config/test-config', {
       type: config.type,
       api_key: config.api_key,
       endpoint: config.endpoint,
+      api_version: config.api_version,
+      deployment: config.deployment,
       model: config.model,
       temperature: config.temperature,
       max_tokens: config.max_tokens,

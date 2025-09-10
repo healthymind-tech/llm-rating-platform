@@ -653,23 +653,50 @@ export class ChatService {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }
 
-      // Convert chat history to OpenAI-compatible format
-      const messages = [
+      // Convert chat history to Azure-compatible format (supports vision)
+      const messages: any[] = [
         { role: 'system', content: systemMessage },
-        ...history.map(msg => ({ role: msg.role, content: msg.content })),
-        { role: 'user', content: message },
       ];
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          const parts: any[] = [];
+          if (msg.content && msg.content.trim().length > 0) {
+            parts.push({ type: 'text', text: msg.content });
+          }
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageUrl = url;
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  imageUrl = await storageService.getImageAsBase64(key);
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, using original URL:', error);
+                }
+              }
+            }
+            parts.push({ type: 'image_url', image_url: { url: imageUrl, detail: 'high' } });
+          }
+          messages.push({ role: 'user', content: parts });
+        } else {
+          messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      }
 
       const cleanBase = config.endpoint.replace(/\/$/, '');
-      const url = `${cleanBase}/openai/deployments/${encodeURIComponent(config.model)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+      const deployment = (config as any).deployment || config.model;
+      const url = `${cleanBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
-      const response = await axios.post(url, {
+      const body: any = {
         messages,
         max_tokens: parseInt((config.max_tokens as any) ?? 150),
         temperature: parseFloat((config.temperature as any) ?? 0.7),
         top_p: 1,
-        model: config.model,
-      }, {
+      };
+      if (config.model) body.model = config.model;
+
+      const response = await axios.post(url, body, {
         headers: (() => {
           const apiKey = config.api_key as string;
           const isBearer = apiKey && apiKey.includes('.') && apiKey.split('.').length >= 3;
@@ -685,7 +712,7 @@ export class ChatService {
     } catch (error: any) {
       console.error('Azure API error:', error);
       if (error.response?.status === 404) {
-        throw new Error('Azure deployment not found. Ensure the "Model" field is your deployment name, not the base model name.');
+        throw new Error('Azure deployment not found. Ensure the Deployment field is set to your Azure deployment name.');
       }
       throw new Error(`Azure API error: ${error.message}`);
     }
@@ -720,25 +747,52 @@ export class ChatService {
         systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
       }
 
-      const messages = [
+      const messages: any[] = [
         { role: 'system', content: systemMessage },
-        ...history.map(msg => ({ role: msg.role, content: msg.content })),
-        { role: 'user', content: message },
       ];
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          const parts: any[] = [];
+          if (msg.content && msg.content.trim().length > 0) {
+            parts.push({ type: 'text', text: msg.content });
+          }
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageUrl = url;
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  imageUrl = await storageService.getImageAsBase64(key);
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, using original URL:', error);
+                }
+              }
+            }
+            parts.push({ type: 'image_url', image_url: { url: imageUrl, detail: 'high' } });
+          }
+          messages.push({ role: 'user', content: parts });
+        } else {
+          messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      }
 
       const cleanBase = config.endpoint.replace(/\/$/, '');
-      const url = `${cleanBase}/openai/deployments/${encodeURIComponent(config.model)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+      const deployment = (config as any).deployment || config.model;
+      const url = `${cleanBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
       // Try streaming first
       try {
-        const response = await axios.post(url, {
+        const body: any = {
           messages,
           stream: true,
           temperature: parseFloat((config.temperature as any) ?? 0.7),
           max_tokens: parseInt((config.max_tokens as any) ?? 150),
           top_p: 1,
-          model: config.model,
-        }, {
+        };
+        if (config.model) body.model = config.model;
+
+        const response = await axios.post(url, body, {
           responseType: 'stream',
           headers: (() => {
             const apiKey = config.api_key as string;
@@ -798,7 +852,7 @@ export class ChatService {
     } catch (error: any) {
       console.error('Azure streaming error:', error);
       if (error.response?.status === 404) {
-        throw new Error('Azure deployment not found. Ensure the "Model" field is your deployment name, not the base model name.');
+        throw new Error('Azure deployment not found. Ensure the Deployment field is set to your Azure deployment name.');
       }
       throw new Error(`Azure streaming error: ${error.message}`);
     }

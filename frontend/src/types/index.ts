@@ -29,9 +29,12 @@ export interface ChatSession {
 export interface LLMConfig {
   id: string;
   name: string;
-  type: 'openai' | 'ollama';
+  type: 'openai' | 'ollama' | 'azure';
   apiKey?: string;
   endpoint?: string;
+  apiVersion?: string;
+  // Azure-specific: deployment name
+  deployment?: string;
   model: string;
   temperature: number;
   maxTokens: number;

@@ -194,11 +194,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Require either a text message or explicit user action (not just dropped images)
-    if ((!inputMessage.trim() && selectedImages.length === 0) || loading || isDragging || justDroppedFiles) return;
-    
-    // Don't auto-send if there's no text message, even with images
-    if (!inputMessage.trim() && selectedImages.length > 0) return;
+    // Allow sending if either text or images exist
+    if (loading || isDragging || justDroppedFiles) return;
+    if (!inputMessage.trim() && selectedImages.length === 0) return;
 
     const message = inputMessage.trim();
     const images = selectedImages.length > 0 ? selectedImages : undefined;
@@ -573,7 +571,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && inputMessage.trim() && !loading && !isDragging && !justDroppedFiles) {
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                (inputMessage.trim() || (supportsVision && selectedImages.length > 0)) &&
+                !loading &&
+                !isDragging &&
+                !justDroppedFiles
+              ) {
                 e.preventDefault();
                 handleSubmit(e);
               }
@@ -582,7 +587,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <Button
             variant="contained"
             onClick={(e) => handleSubmit(e)}
-            disabled={!inputMessage.trim() || loading || isDragging || justDroppedFiles}
+            disabled={!(inputMessage.trim() || (supportsVision && selectedImages.length > 0)) || loading || isDragging || justDroppedFiles}
             sx={{ 
               minWidth: { xs: 48, sm: 56 },
               height: { xs: 48, sm: 56 },
