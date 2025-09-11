@@ -116,8 +116,8 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
       return res.status(400).json({ error: 'Name and type are required' });
     }
 
-    if (!['openai', 'ollama', 'azure'].includes(type)) {
-      return res.status(400).json({ error: 'Type must be one of "openai", "ollama", or "azure"' });
+    if (!['openai', 'ollama', 'azure', 'vllm'].includes(type)) {
+      return res.status(400).json({ error: 'Type must be one of "openai", "ollama", "azure", or "vllm"' });
     }
 
     // API key is now optional for local services
@@ -130,6 +130,10 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
 
     if (type === 'ollama' && !endpoint) {
       return res.status(400).json({ error: 'Endpoint is required for Ollama configurations' });
+    }
+
+    if (type === 'vllm' && !endpoint) {
+      return res.status(400).json({ error: 'Endpoint is required for vLLM configurations' });
     }
 
     if (type === 'azure') {
@@ -211,8 +215,8 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
     
     if (name !== undefined) updates.name = name;
     if (type !== undefined) {
-      if (!['openai', 'ollama', 'azure'].includes(type)) {
-        return res.status(400).json({ error: 'Type must be one of "openai", "ollama", or "azure"' });
+      if (!['openai', 'ollama', 'azure', 'vllm'].includes(type)) {
+        return res.status(400).json({ error: 'Type must be one of "openai", "ollama", "azure", or "vllm"' });
       }
       updates.type = type;
     }

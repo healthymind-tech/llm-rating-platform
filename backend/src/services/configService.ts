@@ -387,6 +387,54 @@ export class ConfigService {
     }
   }
 
+  static async fetchVLLMModels(endpoint: string): Promise<any[]> {
+    try {
+      // Remove trailing slash and normalize URL
+      const cleanEndpoint = endpoint.replace(/\/$/, '');
+      
+      // vLLM uses OpenAI-compatible API format for listing models
+      const response = await axios.get(`${cleanEndpoint}/models`, {
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.data) {
+        // Process vLLM models - similar to OpenAI format but with vLLM-specific fields
+        return response.data.data
+          .map((model: any) => ({
+            id: model.id,
+            name: model.id,
+            object: model.object,
+            created: model.created,
+            owned_by: model.owned_by || 'vllm',
+            root: model.root,
+            parent: model.parent,
+            max_model_len: model.max_model_len,
+            permission: model.permission
+          }))
+          .sort((a: any, b: any) => a.id.localeCompare(b.id));
+      }
+
+      return [];
+    } catch (error: any) {
+      console.error('Fetch vLLM models error:', error);
+      
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error('Unable to connect to vLLM - Please check if vLLM server is running and the endpoint URL is correct');
+      } else if (error.response?.status === 404) {
+        throw new Error('vLLM API endpoint not found - Please verify the endpoint URL');
+      } else if (error.code === 'ENOTFOUND') {
+        throw new Error('Invalid endpoint URL - Please check the vLLM server address');
+      } else if (error.code === 'ETIMEDOUT') {
+        throw new Error('Request timed out - vLLM server may be unavailable');
+      } else {
+        throw new Error(`Failed to fetch vLLM models: ${error.message}`);
+      }
+    }
+  }
+
   static async fetchModels(type: string, endpoint: string, apiKey?: string, apiVersion?: string, azureList?: 'deployments' | 'models'): Promise<any[]> {
     if (type === 'ollama') {
       return await this.fetchOllamaModels(endpoint);
@@ -394,6 +442,8 @@ export class ConfigService {
       return await this.fetchOpenAIModels(apiKey || '', endpoint);
     } else if (type === 'azure') {
       return await this.fetchAzureModels(endpoint, apiKey || '', apiVersion || '', azureList);
+    } else if (type === 'vllm') {
+      return await this.fetchVLLMModels(endpoint);
     } else {
       throw new Error(`Unsupported model type: ${type}`);
     }
@@ -501,6 +551,8 @@ export class ConfigService {
         return await this.testOllamaConfig(testMessage, config);
       } else if (config.type === 'azure') {
         return await this.testAzureConfig(testMessage, config);
+      } else if (config.type === 'vllm') {
+        return await this.testVLLMConfig(testMessage, config);
       } else {
         throw new Error('Unsupported LLM type for testing');
       }
@@ -671,6 +723,61 @@ export class ConfigService {
         throw new Error('Deployment/model not found - Check the model name');
       }
       throw new Error(`Azure error: ${error.message}`);
+    }
+  }
+
+  private static async testVLLMConfig(message: string, config: any): Promise<string> {
+    try {
+      if (!config.endpoint) throw new Error('Endpoint URL is required for vLLM configuration');
+      if (!config.model) throw new Error('Model name is required for vLLM configuration');
+      
+      const vllmBody: any = {
+        model: config.model,
+        messages: [
+          { role: 'user', content: message },
+        ],
+        stream: false,
+      };
+      
+      // Add optional parameters
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        vllmBody.temperature = config.temperature;
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        vllmBody.max_tokens = config.max_tokens;
+      }
+      if (config.repetition_penalty !== undefined && config.repetition_penalty !== null && config.repetition_penalty !== ('' as any)) {
+        vllmBody.repetition_penalty = config.repetition_penalty;
+      }
+
+      // vLLM uses OpenAI-compatible /chat/completions endpoint
+      const cleanEndpoint = config.endpoint.replace(/\/$/, '');
+      const url = `${cleanEndpoint}/chat/completions`;
+      
+      const response = await axios.post(url, vllmBody, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000, // 30 second timeout for vLLM
+      });
+
+      return response.data.choices?.[0]?.message?.content || 'Test completed but no response received';
+    } catch (error: any) {
+      console.error('vLLM test error:', error);
+      
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error('Unable to connect to vLLM server - Please check if vLLM is running and the endpoint URL is correct');
+      } else if (error.response?.status === 404) {
+        throw new Error('Model not found in vLLM - Please check if the model is loaded');
+      } else if (error.response?.status === 400) {
+        throw new Error('Bad request - Please check model name and parameters');
+      } else if (error.code === 'ENOTFOUND') {
+        throw new Error('Invalid endpoint URL - Please check the vLLM server address');
+      } else if (error.code === 'ETIMEDOUT') {
+        throw new Error('Request timed out - vLLM server may be unavailable or processing');
+      } else {
+        throw new Error(`vLLM error: ${error.message}`);
+      }
     }
   }
 }

@@ -144,6 +144,8 @@ export class ChatService {
         result = await this.sendToOllama(message, messages, config, userId);
       } else if (config.type === 'azure') {
         result = await this.sendToAzure(message, messages, config, userId);
+      } else if (config.type === 'vllm') {
+        result = await this.sendToVLLM(message, messages, config, userId);
       } else {
         throw new Error('Unsupported LLM type');
       }
@@ -187,6 +189,8 @@ export class ChatService {
         fullResponse = await this.sendToOllamaStream(message, messages, config, userId, res);
       } else if (config.type === 'azure') {
         fullResponse = await this.sendToAzureStream(message, messages, config, userId, res);
+      } else if (config.type === 'vllm') {
+        fullResponse = await this.sendToVLLMStream(message, messages, config, userId, res);
       } else {
         throw new Error('Unsupported LLM type');
       }
@@ -980,5 +984,280 @@ export class ChatService {
       }
       throw new Error(`Azure streaming error: ${error.message}`);
     }
+  }
+
+  private static async sendToVLLM(message: string, history: ChatMessage[], config: LLMConfig, userId?: string): Promise<{response: string, tokenUsage?: {inputTokens: number, outputTokens: number, totalTokens: number}}> {
+    try {
+      if (!config.endpoint) {
+        // Return demo response when no endpoint is configured
+        return this.getDemoResponse(message);
+      }
+
+      // Get user profile information for context
+      let userProfileContext = '';
+      if (userId) {
+        try {
+          userProfileContext = await userProfileService.getUserProfileForLLM(userId);
+        } catch (error) {
+          console.warn('Could not get user profile for LLM context:', error);
+        }
+      }
+
+      // Build system message with user profile context
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
+      if (userProfileContext) {
+        systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
+      }
+
+      // Convert chat history to vLLM format (OpenAI-compatible with vision support)
+      const messages: any[] = [
+        { role: 'system', content: systemMessage },
+      ];
+
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          const parts: any[] = [];
+          if (msg.content && msg.content.trim().length > 0) {
+            parts.push({ type: 'text', text: msg.content });
+          }
+          
+          // Convert MinIO URLs to base64 data URLs for vLLM
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageUrl = url;
+            // If it's a MinIO URL, convert to base64
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  imageUrl = await storageService.getImageAsBase64(key);
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, using original URL:', error);
+                }
+              }
+            }
+            parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+          }
+          messages.push({ role: 'user', content: parts });
+        } else {
+          messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      }
+
+      // Add the current user message (this function doesn't receive images directly, they come from history)
+      messages.push({ role: 'user', content: message });
+
+      const url = this.buildVLLMUrl(config.endpoint);
+      const vllmBody: any = {
+        model: config.model,
+        messages,
+        stream: false,
+      };
+
+      // Add optional parameters
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        vllmBody.temperature = parseFloat(config.temperature as any);
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        vllmBody.max_tokens = parseInt(config.max_tokens as any);
+      }
+      if (config.repetition_penalty !== undefined && config.repetition_penalty !== null && config.repetition_penalty !== ('' as any)) {
+        vllmBody.repetition_penalty = parseFloat(config.repetition_penalty as any);
+      }
+
+      const response = await axios.post(url, vllmBody, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        maxRedirects: 0,
+        timeout: 30000
+      });
+
+      const responseContent = response.data.choices?.[0]?.message?.content || 'No response generated';
+      
+      // Return response with token usage information if available
+      const result = {
+        response: responseContent,
+        tokenUsage: response.data.usage ? {
+          inputTokens: response.data.usage.prompt_tokens || 0,
+          outputTokens: response.data.usage.completion_tokens || 0,
+          totalTokens: response.data.usage.total_tokens || 0
+        } : {
+          inputTokens: this.estimateTokens(message),
+          outputTokens: this.estimateTokens(responseContent),
+          totalTokens: this.estimateTokens(message + responseContent)
+        }
+      };
+
+      return result;
+    } catch (error: any) {
+      console.error('vLLM API error:', error);
+      throw new Error(`vLLM API error: ${error.message}`);
+    }
+  }
+
+  // Streaming version for vLLM
+  private static async sendToVLLMStream(
+    message: string, 
+    history: ChatMessage[], 
+    config: LLMConfig, 
+    userId: string | undefined, 
+    res: Response
+  ): Promise<string> {
+    try {
+      if (!config.endpoint) {
+        // Return demo response when no endpoint is configured
+        const demoResult = this.getDemoResponse(message);
+        
+        // Simulate streaming for demo
+        const words = demoResult.response.split(' ');
+        for (let i = 0; i < words.length; i++) {
+          const chunk = (i === 0 ? words[i] : ' ' + words[i]);
+          res.write(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`);
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        res.write(`data: ${JSON.stringify({ content: '', done: true })}\n\n`);
+        
+        return demoResult.response;
+      }
+
+      // Get user profile information for context
+      let userProfileContext = '';
+      if (userId) {
+        try {
+          userProfileContext = await userProfileService.getUserProfileForLLM(userId);
+        } catch (error) {
+          console.warn('Could not get user profile for LLM context:', error);
+        }
+      }
+
+      // Build system message with user profile context
+      let systemMessage = config.system_prompt || 'You are a helpful AI assistant.';
+      if (userProfileContext) {
+        systemMessage += ` ${userProfileContext}. Please consider this information when providing health, fitness, or lifestyle recommendations.`;
+      }
+
+      // Convert chat history to vLLM format (OpenAI-compatible with vision support)
+      const messages: any[] = [
+        { role: 'system', content: systemMessage },
+      ];
+
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          const parts: any[] = [];
+          if (msg.content && msg.content.trim().length > 0) {
+            parts.push({ type: 'text', text: msg.content });
+          }
+          
+          // Convert MinIO URLs to base64 data URLs for vLLM
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageUrl = url;
+            // If it's a MinIO URL, convert to base64
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  imageUrl = await storageService.getImageAsBase64(key);
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, using original URL:', error);
+                }
+              }
+            }
+            parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+          }
+          messages.push({ role: 'user', content: parts });
+        } else {
+          messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      }
+
+      // Add the current user message (this function doesn't receive images directly, they come from history)
+      messages.push({ role: 'user', content: message });
+
+      const url = this.buildVLLMUrl(config.endpoint);
+      console.log('vLLM streaming request URL:', url);
+      
+      const svllmBody: any = {
+        model: config.model,
+        messages,
+        stream: true,
+      };
+
+      // Add optional parameters
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        svllmBody.temperature = parseFloat(config.temperature as any);
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        svllmBody.max_tokens = parseInt(config.max_tokens as any);
+      }
+      if (config.repetition_penalty !== undefined && config.repetition_penalty !== null && config.repetition_penalty !== ('' as any)) {
+        svllmBody.repetition_penalty = parseFloat(config.repetition_penalty as any);
+      }
+
+      const response = await axios.post(url, svllmBody, {
+        responseType: 'stream',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        maxRedirects: 0,
+        timeout: 30000
+      });
+
+      let fullResponse = '';
+
+      return new Promise((resolve, reject) => {
+        response.data.on('data', (chunk: Buffer) => {
+          const lines = chunk.toString().split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            try {
+              // Handle server-sent events format
+              const data = line.startsWith('data: ') ? line.slice(6) : line;
+              if (data.trim() === '[DONE]') {
+                res.write(`data: ${JSON.stringify({ content: '', done: true })}\n\n`);
+                resolve(fullResponse);
+                return;
+              }
+              
+              const parsed = JSON.parse(data);
+              if (parsed.choices?.[0]?.delta?.content) {
+                const content = parsed.choices[0].delta.content;
+                fullResponse += content;
+                res.write(`data: ${JSON.stringify({ content, done: false })}\n\n`);
+              }
+            } catch (parseError) {
+              // Ignore malformed JSON lines
+            }
+          }
+        });
+
+        response.data.on('error', (error: any) => {
+          console.error('vLLM streaming error:', error);
+          res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          reject(new Error(`vLLM API error: ${error.message}`));
+        });
+
+        response.data.on('end', () => {
+          if (fullResponse) {
+            resolve(fullResponse);
+          } else {
+            resolve('No response generated');
+          }
+        });
+      });
+      
+    } catch (error: any) {
+      console.error('vLLM streaming API error:', error);
+      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      throw new Error(`vLLM API error: ${error.message}`);
+    }
+  }
+
+  private static buildVLLMUrl(endpoint: string): string {
+    // For vLLM APIs (OpenAI-compatible)
+    // Remove trailing slash and add the chat completions path
+    const cleanEndpoint = endpoint.replace(/\/$/, '');
+    return `${cleanEndpoint}/chat/completions`;
   }
 }

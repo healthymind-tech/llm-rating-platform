@@ -30,7 +30,7 @@ export interface ChatSession {
 export interface LLMConfig {
   id: string;
   name: string;
-  type: 'openai' | 'ollama' | 'azure';
+  type: 'openai' | 'ollama' | 'azure' | 'vllm';
   api_key?: string;
   endpoint?: string;
   api_version?: string;
