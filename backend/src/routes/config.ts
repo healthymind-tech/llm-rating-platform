@@ -125,9 +125,8 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
     //   return res.status(400).json({ error: 'API key is required for OpenAI configurations' });
     // }
 
-    if (type === 'openai' && !endpoint) {
-      return res.status(400).json({ error: 'API endpoint is required for OpenAI configurations' });
-    }
+    // Only OpenAI uses a fixed endpoint that cannot be changed
+    const OPENAI_BASE = 'https://api.openai.com/v1';
 
     if (type === 'ollama' && !endpoint) {
       return res.status(400).json({ error: 'Endpoint is required for Ollama configurations' });
@@ -142,32 +141,34 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
       if (!model) return res.status(400).json({ error: 'Model is required for non-Azure configurations' });
     }
 
-    if (temperature !== undefined) {
+    if (temperature !== undefined && temperature !== null) {
       const tempNum = parseFloat(temperature);
       if (isNaN(tempNum) || tempNum < 0 || tempNum > 2) {
         return res.status(400).json({ error: 'Temperature must be a number between 0 and 2' });
       }
     }
 
-    if (max_tokens !== undefined) {
+    if (max_tokens !== undefined && max_tokens !== null) {
       const tokensNum = parseInt(max_tokens);
       if (isNaN(tokensNum) || tokensNum <= 0) {
         return res.status(400).json({ error: 'Max tokens must be a positive integer' });
       }
     }
 
-    const configData = {
+    const endpointValue: string = (type === 'openai') ? OPENAI_BASE : (endpoint || '');
+
+    const configData: any = {
       name,
       type,
       api_key: api_key || null,
-      endpoint: endpoint || (type === 'openai' ? 'https://api.openai.com/v1' : null),
+      endpoint: endpointValue,
       api_version: req.body.api_version || null,
       deployment: deployment || null,
       model,
-      temperature: temperature ? parseFloat(temperature) : 0.7,
-      max_tokens: max_tokens ? parseInt(max_tokens) : 2048,
+      temperature: (temperature !== undefined && temperature !== '' && temperature !== null) ? parseFloat(temperature) : null,
+      max_tokens: (max_tokens !== undefined && max_tokens !== '' && max_tokens !== null) ? parseInt(max_tokens) : null,
       system_prompt: system_prompt || undefined,
-      repetition_penalty: repetition_penalty ? parseFloat(repetition_penalty) : undefined,
+      repetition_penalty: (repetition_penalty !== undefined && repetition_penalty !== '' && repetition_penalty !== null) ? parseFloat(repetition_penalty) : null,
       supports_vision: supports_vision || false,
       is_enabled: is_enabled || false,
       is_default: is_default || false,
@@ -185,6 +186,11 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res) 
 router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    // Load current config to enforce OpenAI endpoint rules
+    const currentConfig = await ConfigService.getConfigById(id);
+    if (!currentConfig) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
     const {
       name,
       type,
@@ -211,31 +217,51 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       updates.type = type;
     }
     if (api_key !== undefined && api_key !== '') updates.api_key = api_key;
-    if (endpoint !== undefined) updates.endpoint = endpoint;
+    // Enforce fixed endpoint only for OpenAI, allow others to change
+    const OPENAI_BASE = 'https://api.openai.com/v1';
+    const effectiveType = updates.type || currentConfig.type;
+    if (endpoint !== undefined) {
+      updates.endpoint = effectiveType === 'openai' ? OPENAI_BASE : endpoint;
+    }
     if (deployment !== undefined) updates.deployment = deployment;
     if (model !== undefined) updates.model = model;
     if (req.body.api_version !== undefined) updates.api_version = req.body.api_version || null;
     if (temperature !== undefined) {
-      const tempNum = parseFloat(temperature);
-      if (isNaN(tempNum) || tempNum < 0 || tempNum > 2) {
-        return res.status(400).json({ error: 'Temperature must be a number between 0 and 2' });
+      if (temperature === '' || temperature === null) {
+        // Explicitly clear to NULL when admin empties the field or sends null
+        updates.temperature = null;
+      } else {
+        const tempNum = parseFloat(temperature);
+        if (isNaN(tempNum) || tempNum < 0 || tempNum > 2) {
+          return res.status(400).json({ error: 'Temperature must be a number between 0 and 2' });
+        }
+        updates.temperature = tempNum;
       }
-      updates.temperature = tempNum;
     }
     if (max_tokens !== undefined) {
-      const tokensNum = parseInt(max_tokens);
-      if (isNaN(tokensNum) || tokensNum <= 0) {
-        return res.status(400).json({ error: 'Max tokens must be a positive integer' });
+      if (max_tokens === '' || max_tokens === null) {
+        // Explicitly clear to NULL when admin empties the field or sends null
+        updates.max_tokens = null;
+      } else {
+        const tokensNum = parseInt(max_tokens);
+        if (isNaN(tokensNum) || tokensNum <= 0) {
+          return res.status(400).json({ error: 'Max tokens must be a positive integer' });
+        }
+        updates.max_tokens = tokensNum;
       }
-      updates.max_tokens = tokensNum;
     }
     if (system_prompt !== undefined) updates.system_prompt = system_prompt || undefined;
     if (repetition_penalty !== undefined) {
-      const penaltyNum = parseFloat(repetition_penalty);
-      if (isNaN(penaltyNum) || penaltyNum < 0.1 || penaltyNum > 2.0) {
-        return res.status(400).json({ error: 'Repetition penalty must be a number between 0.1 and 2.0' });
+      if (repetition_penalty === '' || repetition_penalty === null) {
+        // Explicitly clear to NULL when admin empties the field or sends null
+        updates.repetition_penalty = null;
+      } else {
+        const penaltyNum = parseFloat(repetition_penalty);
+        if (isNaN(penaltyNum) || penaltyNum < 0.1 || penaltyNum > 2.0) {
+          return res.status(400).json({ error: 'Repetition penalty must be a number between 0.1 and 2.0' });
+        }
+        updates.repetition_penalty = penaltyNum;
       }
-      updates.repetition_penalty = penaltyNum;
     }
     if (supports_vision !== undefined) updates.supports_vision = !!supports_vision;
     if (is_enabled !== undefined) updates.is_enabled = is_enabled;
@@ -286,20 +312,23 @@ router.post('/fetch-models', authenticateToken, requireAdmin, async (req: AuthRe
       return res.status(400).json({ error: 'LLM type (openai/ollama/azure) is required' });
     }
 
-    if (!endpoint) {
-      return res.status(400).json({ error: 'Endpoint URL is required' });
-    }
+    // Only OpenAI endpoint is fixed
+    const OPENAI_BASE = 'https://api.openai.com/v1';
 
-    if (type === 'openai' && !api_key && endpoint.includes('api.openai.com')) {
+    if (type === 'openai' && !api_key) {
       return res.status(400).json({ error: 'API key is required for OpenAI' });
     }
 
+    if (type !== 'openai' && !endpoint) {
+      return res.status(400).json({ error: 'Endpoint URL is required' });
+    }
     if (type === 'azure') {
       if (!api_key) return res.status(400).json({ error: 'Token is required for Azure' });
       if (!api_version) return res.status(400).json({ error: 'API version is required for Azure' });
     }
 
-    const models = await ConfigService.fetchModels(type, endpoint, api_key, api_version, azure_list);
+    const effectiveEndpoint = type === 'openai' ? OPENAI_BASE : endpoint;
+    const models = await ConfigService.fetchModels(type, effectiveEndpoint as string, api_key, api_version, azure_list);
     
     res.json({ models });
   } catch (error: any) {
@@ -317,31 +346,23 @@ router.post('/test-config', authenticateToken, requireAdmin, async (req: AuthReq
       return res.status(400).json({ error: 'Type is required' });
     }
 
-    // Allow testing without API key for demo mode
-    if (type === 'openai' && !api_key) {
-      // Demo mode - will be handled in the service
-    }
-
-    if (type === 'ollama' && !endpoint) {
-      return res.status(400).json({ error: 'Endpoint is required for Ollama configurations' });
-    }
-
+    // Allow testing without API key for OpenAI demo mode; service handles demo
     if (type === 'azure') {
-      if (!endpoint) return res.status(400).json({ error: 'Base URL is required for Azure configurations' });
       if (!api_key) return res.status(400).json({ error: 'Token is required for Azure configurations' });
       if (!api_version) return res.status(400).json({ error: 'API version is required for Azure configurations' });
       if (!deployment && !model) return res.status(400).json({ error: 'Deployment is required for Azure configurations' });
     }
 
-    const testConfig = {
+    const OPENAI_BASE = 'https://api.openai.com/v1';
+    const testConfig: any = {
       type,
       api_key: api_key || null,
-      endpoint: endpoint || (type === 'openai' ? 'https://api.openai.com/v1' : null),
+      endpoint: type === 'openai' ? OPENAI_BASE : (endpoint || null),
       api_version: api_version || null,
       deployment: deployment || null,
       model,
-      temperature: temperature ? parseFloat(temperature) : 0.7,
-      max_tokens: max_tokens ? parseInt(max_tokens) : 150,
+      temperature: (temperature !== undefined && temperature !== '') ? parseFloat(temperature) : undefined,
+      max_tokens: (max_tokens !== undefined && max_tokens !== '') ? parseInt(max_tokens) : undefined,
     };
 
     const response = await ConfigService.testConfiguration(testConfig);

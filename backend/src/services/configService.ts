@@ -547,15 +547,21 @@ export class ConfigService {
         baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash
       });
 
-      const completion = await openai.chat.completions.create({
+      const payload: any = {
         model: config.model,
         messages: [
           { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
           { role: 'user', content: message },
         ],
-        temperature: config.temperature || 0.7,
-        max_tokens: config.max_tokens || 150,
-      });
+      };
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        payload.temperature = config.temperature;
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        // @ts-ignore OpenAI Responses-style parameter for compatibility
+        payload.max_completion_tokens = config.max_tokens;
+      }
+      const completion = await openai.chat.completions.create(payload);
 
       return completion.choices[0]?.message?.content || 'Test completed but no response received';
     } catch (error: any) {
@@ -579,21 +585,23 @@ export class ConfigService {
 
   private static async testOllamaConfig(message: string, config: any): Promise<string> {
     try {
-      if (!config.endpoint) {
-        throw new Error('Endpoint URL is required for Ollama configuration');
-      }
-
-      const response = await axios.post(`${config.endpoint}/api/chat`, {
+      if (!config.endpoint) throw new Error('Endpoint URL is required for Ollama configuration');
+      const ollamaBody: any = {
         model: config.model,
         messages: [
           { role: 'user', content: message },
         ],
         stream: false,
-        options: {
-          temperature: config.temperature || 0.7,
-          num_predict: config.max_tokens || 150,
-        },
-      }, {
+      };
+      const options: any = {};
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        options.temperature = config.temperature;
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        options.num_predict = config.max_tokens;
+      }
+      if (Object.keys(options).length > 0) ollamaBody.options = options;
+      const response = await axios.post(`${config.endpoint}/api/chat`, ollamaBody, {
         timeout: 30000, // 30 second timeout for Ollama
       });
 
@@ -620,7 +628,6 @@ export class ConfigService {
       if (!config.endpoint) throw new Error('Base URL is required for Azure configuration');
       if (!config.api_version) throw new Error('API version is required for Azure configuration');
       if (!config.api_key) throw new Error('Token is required for Azure configuration');
-
       const cleanBaseURL = config.endpoint.replace(/\/$/, '');
       const deployment = config.deployment || config.model;
       if (!deployment) throw new Error('Deployment is required for Azure configuration');
@@ -631,10 +638,14 @@ export class ConfigService {
           { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
           { role: 'user', content: message },
         ],
-        max_tokens: config.max_tokens || 150,
-        temperature: config.temperature || 0.7,
         top_p: 1,
       };
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        body.max_tokens = config.max_tokens;
+      }
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        body.temperature = config.temperature;
+      }
       if (config.model) body.model = config.model;
 
       const headers = (() => {
