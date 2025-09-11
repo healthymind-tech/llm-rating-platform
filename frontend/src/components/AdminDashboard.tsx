@@ -110,14 +110,14 @@ export const AdminDashboard: React.FC = () => {
     name: '',
     type: 'openai' as 'openai' | 'ollama' | 'azure',
     apiKey: '',
-    endpoint: 'https://api.openai.com/v1',
+    endpoint: '',
     apiVersion: '',
     deployment: '',
     model: '',
-    temperature: '0.7',
-    maxTokens: '1000',
+    temperature: '',
+    maxTokens: '',
     systemPrompt: '',
-    repetitionPenalty: '1.0',
+    repetitionPenalty: '',
     supportsVision: false,
     isEnabled: false,
     isDefault: false,
@@ -194,7 +194,8 @@ export const AdminDashboard: React.FC = () => {
       return;
     }
 
-    if (!currentConfig.endpoint) {
+    // For OpenAI, we use the fixed endpoint, so no need to check
+    if (currentConfig.type !== 'openai' && !currentConfig.endpoint) {
       alert('Please provide an endpoint URL to fetch models');
       return;
     }
@@ -213,7 +214,8 @@ export const AdminDashboard: React.FC = () => {
 
     setFetchingModels(true);
     try {
-      const models = await configAPI.fetchModels(currentConfig.type, currentConfig.endpoint, currentConfig.apiKey, (currentConfig as any).apiVersion);
+      const endpoint = currentConfig.type === 'openai' ? 'https://api.openai.com/v1' : (currentConfig.endpoint || '');
+      const models = await configAPI.fetchModels(currentConfig.type, endpoint, currentConfig.apiKey, (currentConfig as any).apiVersion);
       // Non-Azure: this populates models
       setAvailableModels(models);
     } catch (error: any) {
@@ -408,9 +410,9 @@ export const AdminDashboard: React.FC = () => {
               apiKey: params.row.apiKey,
               apiVersion: (params.row as any).apiVersion || '',
               systemPrompt: params.row.systemPrompt || '',
-              temperature: params.row.temperature?.toString() || '0.7',
-              maxTokens: params.row.maxTokens?.toString() || '1000',
-              repetitionPenalty: params.row.repetitionPenalty?.toString() || '1.0'
+              temperature: (params.row.temperature !== undefined && params.row.temperature !== null) ? params.row.temperature.toString() : '',
+              maxTokens: (params.row.maxTokens !== undefined && params.row.maxTokens !== null) ? params.row.maxTokens.toString() : '',
+              repetitionPenalty: (params.row.repetitionPenalty !== undefined && params.row.repetitionPenalty !== null) ? params.row.repetitionPenalty.toString() : ''
             });
             setShowApiKey(false);
             setConfigDialogOpen(true);
@@ -485,10 +487,22 @@ export const AdminDashboard: React.FC = () => {
           // @ts-ignore include azure-specific field
           deployment: (selectedConfig as any).deployment,
           model: selectedConfig.model,
-          temperature: typeof selectedConfig.temperature === 'string' ? parseFloat(selectedConfig.temperature) : selectedConfig.temperature,
-          maxTokens: typeof selectedConfig.maxTokens === 'string' ? parseInt(selectedConfig.maxTokens) : selectedConfig.maxTokens,
+          temperature: ((): any => {
+            if (selectedConfig.temperature === '' || selectedConfig.temperature === undefined || selectedConfig.temperature === null) return null;
+            if (typeof selectedConfig.temperature === 'string') return selectedConfig.temperature.trim() === '' ? null : parseFloat(selectedConfig.temperature);
+            return selectedConfig.temperature;
+          })(),
+          maxTokens: ((): any => {
+            if (selectedConfig.maxTokens === '' || selectedConfig.maxTokens === undefined || selectedConfig.maxTokens === null) return null;
+            if (typeof selectedConfig.maxTokens === 'string') return selectedConfig.maxTokens.trim() === '' ? null : parseInt(selectedConfig.maxTokens);
+            return selectedConfig.maxTokens;
+          })(),
           systemPrompt: selectedConfig.systemPrompt,
-          repetitionPenalty: typeof selectedConfig.repetitionPenalty === 'string' ? parseFloat(selectedConfig.repetitionPenalty) : selectedConfig.repetitionPenalty,
+          repetitionPenalty: ((): any => {
+            if (selectedConfig.repetitionPenalty === '' || selectedConfig.repetitionPenalty === undefined || selectedConfig.repetitionPenalty === null) return null;
+            if (typeof selectedConfig.repetitionPenalty === 'string') return selectedConfig.repetitionPenalty.trim() === '' ? null : parseFloat(selectedConfig.repetitionPenalty);
+            return selectedConfig.repetitionPenalty;
+          })(),
           supportsVision: selectedConfig.supportsVision || false,
           isEnabled: selectedConfig.isEnabled,
           isDefault: selectedConfig.isDefault,
@@ -504,10 +518,22 @@ export const AdminDashboard: React.FC = () => {
           // @ts-ignore include azure-specific field
           deployment: (newConfig as any).deployment,
           model: newConfig.model,
-          temperature: typeof newConfig.temperature === 'string' && newConfig.temperature !== '' ? parseFloat(newConfig.temperature) : 0.7,
-          maxTokens: typeof newConfig.maxTokens === 'string' && newConfig.maxTokens !== '' ? parseInt(newConfig.maxTokens) : 1000,
+          temperature: ((): any => {
+            if (newConfig.temperature === '' || newConfig.temperature === undefined || newConfig.temperature === null) return null;
+            if (typeof newConfig.temperature === 'string') return newConfig.temperature.trim() === '' ? null : parseFloat(newConfig.temperature);
+            return newConfig.temperature;
+          })(),
+          maxTokens: ((): any => {
+            if (newConfig.maxTokens === '' || newConfig.maxTokens === undefined || newConfig.maxTokens === null) return null;
+            if (typeof newConfig.maxTokens === 'string') return newConfig.maxTokens.trim() === '' ? null : parseInt(newConfig.maxTokens);
+            return newConfig.maxTokens;
+          })(),
           systemPrompt: newConfig.systemPrompt,
-          repetitionPenalty: typeof newConfig.repetitionPenalty === 'string' && newConfig.repetitionPenalty !== '' ? parseFloat(newConfig.repetitionPenalty) : 1.0,
+          repetitionPenalty: ((): any => {
+            if (newConfig.repetitionPenalty === '' || newConfig.repetitionPenalty === undefined || newConfig.repetitionPenalty === null) return null;
+            if (typeof newConfig.repetitionPenalty === 'string') return newConfig.repetitionPenalty.trim() === '' ? null : parseFloat(newConfig.repetitionPenalty);
+            return newConfig.repetitionPenalty;
+          })(),
           supportsVision: newConfig.supportsVision || false,
           isEnabled: newConfig.isEnabled,
           isDefault: newConfig.isDefault,
@@ -522,14 +548,14 @@ export const AdminDashboard: React.FC = () => {
         name: '',
         type: 'openai',
         apiKey: '',
-        endpoint: 'https://api.openai.com/v1',
+        endpoint: '',
         apiVersion: '',
         deployment: '',
         model: '',
-        temperature: '0.7',
-        maxTokens: '1000',
+        temperature: '',
+        maxTokens: '',
         systemPrompt: '',
-        repetitionPenalty: '1.0',
+        repetitionPenalty: '',
         supportsVision: false,
         isEnabled: false,
         isDefault: false,
@@ -918,10 +944,31 @@ export const AdminDashboard: React.FC = () => {
             <InputLabel>Type</InputLabel>
             <Select
               value={selectedConfig?.type || newConfig.type}
-              onChange={(e) => selectedConfig 
-                ? setSelectedConfig({...selectedConfig, type: e.target.value as 'openai' | 'ollama'})
-                : setNewConfig({...newConfig, type: e.target.value as 'openai' | 'ollama'})
-              }
+              onChange={(e) => {
+                const newType = e.target.value as 'openai' | 'ollama' | 'azure';
+                if (selectedConfig) {
+                  const next: any = { ...selectedConfig, type: newType };
+                  // Adjust endpoint defaults when switching type
+                  if (newType === 'openai') {
+                    next.endpoint = 'https://api.openai.com/v1';
+                  } else if (newType === 'ollama') {
+                    next.endpoint = 'http://localhost:11434';
+                  } else if (newType === 'azure') {
+                    next.endpoint = '';
+                  }
+                  setSelectedConfig(next);
+                } else {
+                  const next: any = { ...newConfig, type: newType };
+                  if (newType === 'openai') {
+                    next.endpoint = 'https://api.openai.com/v1';
+                  } else if (newType === 'ollama') {
+                    next.endpoint = 'http://localhost:11434';
+                  } else if (newType === 'azure') {
+                    next.endpoint = '';
+                  }
+                  setNewConfig(next);
+                }
+              }}
             >
               <MenuItem value="openai">OpenAI</MenuItem>
               <MenuItem value="ollama">Ollama</MenuItem>
@@ -931,16 +978,25 @@ export const AdminDashboard: React.FC = () => {
           <TextField
             fullWidth
             label={(selectedConfig?.type || newConfig.type) === 'azure' ? 'Base URL' : 'Endpoint URL'}
-            value={selectedConfig?.endpoint || newConfig.endpoint || (((selectedConfig?.type === 'openai' || newConfig.type === 'openai')) ? 'https://api.openai.com/v1' : '')}
-            onChange={(e) => selectedConfig 
-              ? setSelectedConfig({...selectedConfig, endpoint: e.target.value})
-              : setNewConfig({...newConfig, endpoint: e.target.value})
+            value={
+              (selectedConfig?.type || newConfig.type) === 'openai'
+                ? 'https://api.openai.com/v1'
+                : (selectedConfig?.endpoint || newConfig.endpoint || '')
             }
+            onChange={(e) => {
+              const currentType = selectedConfig?.type || newConfig.type;
+              if (currentType === 'openai') return; // Don't allow changes for OpenAI
+              
+              selectedConfig 
+                ? setSelectedConfig({...selectedConfig, endpoint: e.target.value})
+                : setNewConfig({...newConfig, endpoint: e.target.value});
+            }}
             margin="normal"
+            disabled={(selectedConfig?.type || newConfig.type) === 'openai'}
             helperText={
-              (selectedConfig?.type === 'openai' || newConfig.type === 'openai')
-                ? 'For OpenAI use: https://api.openai.com/v1, for other providers use their compatible endpoint'
-                : (selectedConfig?.type === 'ollama' || newConfig.type === 'ollama')
+              (selectedConfig?.type || newConfig.type) === 'openai'
+                ? 'OpenAI endpoint is fixed to https://api.openai.com/v1'
+                : (selectedConfig?.type || newConfig.type) === 'ollama'
                   ? 'Enter the Ollama server endpoint URL (e.g., http://localhost:11434)'
                   : 'Enter your Azure base URL (e.g., https://your-resource-name.openai.azure.com)'
             }
@@ -1123,18 +1179,18 @@ export const AdminDashboard: React.FC = () => {
             label="Temperature"
             type="number"
             inputProps={{ min: 0, max: 2, step: 0.1 }}
-            value={selectedConfig?.temperature?.toString() || newConfig.temperature}
+            value={selectedConfig ? (selectedConfig.temperature as any) ?? '' : newConfig.temperature}
             onChange={(e) => selectedConfig 
               ? setSelectedConfig({...selectedConfig, temperature: e.target.value})
               : setNewConfig({...newConfig, temperature: e.target.value})
             }
             margin="normal"
           />
-          <TextField
+         <TextField
             fullWidth
             label="Max Tokens"
             type="number"
-            value={selectedConfig?.maxTokens?.toString() || newConfig.maxTokens}
+            value={selectedConfig ? (selectedConfig.maxTokens as any) ?? '' : newConfig.maxTokens}
             onChange={(e) => selectedConfig 
               ? setSelectedConfig({...selectedConfig, maxTokens: e.target.value})
               : setNewConfig({...newConfig, maxTokens: e.target.value})
@@ -1159,7 +1215,7 @@ export const AdminDashboard: React.FC = () => {
             label="Repetition Penalty"
             type="number"
             inputProps={{ min: 0.1, max: 2.0, step: 0.1 }}
-            value={selectedConfig?.repetitionPenalty?.toString() || newConfig.repetitionPenalty}
+            value={selectedConfig ? (selectedConfig.repetitionPenalty as any) ?? '' : newConfig.repetitionPenalty}
             onChange={(e) => selectedConfig 
               ? setSelectedConfig({...selectedConfig, repetitionPenalty: e.target.value})
               : setNewConfig({...newConfig, repetitionPenalty: e.target.value})

@@ -215,7 +215,7 @@ export class ChatService {
 
       console.log('Using OpenAI API with key:', config.api_key ? 'configured' : 'not configured');
       
-      const baseURL = config.endpoint || 'https://api.openai.com/v1';
+      const baseURL = 'https://api.openai.com/v1';
       const openai = new OpenAI({
         apiKey: config.api_key,
         baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash for OpenAI client
@@ -272,12 +272,18 @@ export class ChatService {
         }
       }
 
-      const completion = await openai.chat.completions.create({
+      const payload: any = {
         model: config.model,
         messages: messages as any,
-        temperature: parseFloat(config.temperature as any),
-        max_tokens: parseInt(config.max_tokens as any),
-      });
+      };
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        payload.temperature = parseFloat(config.temperature as any);
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        // @ts-ignore OpenAI Responses-style parameter for compatibility
+        payload.max_completion_tokens = parseInt(config.max_tokens as any);
+      }
+      const completion = await openai.chat.completions.create(payload);
 
       const response = completion.choices[0]?.message?.content || 'No response generated';
       
@@ -326,7 +332,7 @@ export class ChatService {
 
       console.log('Using OpenAI API with streaming');
       
-      const baseURL = config.endpoint || 'https://api.openai.com/v1';
+      const baseURL = 'https://api.openai.com/v1';
       const openai = new OpenAI({
         apiKey: config.api_key,
         baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash for OpenAI client
@@ -383,13 +389,19 @@ export class ChatService {
         }
       }
 
-      const stream = await openai.chat.completions.create({
+      const spayload: any = {
         model: config.model,
         messages: messages as any,
-        temperature: parseFloat(config.temperature as any),
-        max_tokens: parseInt(config.max_tokens as any),
         stream: true,
-      });
+      };
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        spayload.temperature = parseFloat(config.temperature as any);
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        // @ts-ignore OpenAI Responses-style parameter for compatibility
+        spayload.max_completion_tokens = parseInt(config.max_tokens as any);
+      }
+      const stream: any = await openai.chat.completions.create(spayload);
 
       let fullResponse = '';
 
@@ -437,23 +449,78 @@ export class ChatService {
       // Convert chat history to Ollama format - include full session history
       const messages = [
         { role: 'system', content: systemMessage },
-        ...history.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-        { role: 'user', content: message },
       ];
 
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          // For Ollama vision models, include images as base64 strings
+          const images: string[] = [];
+          
+          // Convert MinIO URLs to base64 strings for Ollama
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageBase64 = '';
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  const base64DataUrl = await storageService.getImageAsBase64(key);
+                  // Extract just the base64 part (remove data:image/...;base64, prefix)
+                  imageBase64 = base64DataUrl.split(',')[1] || base64DataUrl;
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, skipping image:', error);
+                }
+              }
+            } else if (url.startsWith('data:image/')) {
+              // Already a base64 data URL, extract just the base64 part
+              imageBase64 = url.split(',')[1] || url;
+            } else {
+              // Regular URL, try to fetch and convert to base64
+              try {
+                const axios = (await import('axios')).default;
+                const response = await axios.get(url, { responseType: 'arraybuffer' });
+                imageBase64 = Buffer.from(response.data).toString('base64');
+              } catch (error) {
+                console.warn('Failed to fetch and convert image URL to base64, skipping:', error);
+              }
+            }
+            
+            if (imageBase64) {
+              images.push(imageBase64);
+            }
+          }
+          
+          messages.push({
+            role: msg.role,
+            content: msg.content,
+            images: images
+          } as any);
+        } else {
+          messages.push({
+            role: msg.role,
+            content: msg.content,
+          });
+        }
+      }
+
+      // Add the current user message (this function doesn't receive images directly, they come from history)
+      messages.push({ role: 'user', content: message });
+
       const url = this.buildOllamaUrl(config.endpoint);
-      const response = await axios.post(url, {
+      const ollamaBody: any = {
         model: config.model,
         messages,
         stream: false,
-        options: {
-          temperature: parseFloat(config.temperature as any),
-          num_predict: parseInt(config.max_tokens as any),
-        },
-      }, {
+      };
+      const options: any = {};
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        options.temperature = parseFloat(config.temperature as any);
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        options.num_predict = parseInt(config.max_tokens as any);
+      }
+      if (Object.keys(options).length > 0) ollamaBody.options = options;
+      const response = await axios.post(url, ollamaBody, {
         maxRedirects: 0, // Disable redirects to prevent method changing
         timeout: 30000   // 30 second timeout
       });
@@ -519,25 +586,80 @@ export class ChatService {
       // Convert chat history to Ollama format
       const messages = [
         { role: 'system', content: systemMessage },
-        ...history.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-        { role: 'user', content: message },
       ];
+
+      for (const msg of history) {
+        if (msg.role === 'user' && config.supports_vision && Array.isArray(msg.images) && msg.images.length > 0) {
+          // For Ollama vision models, include images as base64 strings
+          const images: string[] = [];
+          
+          // Convert MinIO URLs to base64 strings for Ollama
+          const { storageService } = await import('../services/storageService');
+          for (const url of msg.images) {
+            let imageBase64 = '';
+            if (url.includes('/chat-uploads/')) {
+              const key = storageService.extractKeyFromUrl(url);
+              if (key) {
+                try {
+                  const base64DataUrl = await storageService.getImageAsBase64(key);
+                  // Extract just the base64 part (remove data:image/...;base64, prefix)
+                  imageBase64 = base64DataUrl.split(',')[1] || base64DataUrl;
+                } catch (error) {
+                  console.warn('Failed to convert MinIO URL to base64, skipping image:', error);
+                }
+              }
+            } else if (url.startsWith('data:image/')) {
+              // Already a base64 data URL, extract just the base64 part
+              imageBase64 = url.split(',')[1] || url;
+            } else {
+              // Regular URL, try to fetch and convert to base64
+              try {
+                const axios = (await import('axios')).default;
+                const response = await axios.get(url, { responseType: 'arraybuffer' });
+                imageBase64 = Buffer.from(response.data).toString('base64');
+              } catch (error) {
+                console.warn('Failed to fetch and convert image URL to base64, skipping:', error);
+              }
+            }
+            
+            if (imageBase64) {
+              images.push(imageBase64);
+            }
+          }
+          
+          messages.push({
+            role: msg.role,
+            content: msg.content,
+            images: images
+          } as any);
+        } else {
+          messages.push({
+            role: msg.role,
+            content: msg.content,
+          });
+        }
+      }
+
+      // Add the current user message (this function doesn't receive images directly, they come from history)
+      messages.push({ role: 'user', content: message });
 
       const url = this.buildOllamaUrl(config.endpoint);
       console.log('Ollama streaming request URL:', url);
       
-      const response = await axios.post(url, {
+      const sollamaBody: any = {
         model: config.model,
         messages,
         stream: true,
-        options: {
-          temperature: parseFloat(config.temperature as any),
-          num_predict: parseInt(config.max_tokens as any),
-        },
-      }, {
+      };
+      const sOptions: any = {};
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        sOptions.temperature = parseFloat(config.temperature as any);
+      }
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        sOptions.num_predict = parseInt(config.max_tokens as any);
+      }
+      if (Object.keys(sOptions).length > 0) sollamaBody.options = sOptions;
+      const response = await axios.post(url, sollamaBody, {
         responseType: 'stream',
         maxRedirects: 0, // Disable redirects to prevent method changing
         timeout: 30000   // 30 second timeout
@@ -688,12 +810,14 @@ export class ChatService {
       const deployment = (config as any).deployment || config.model;
       const url = `${cleanBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
-      const body: any = {
-        messages,
-        max_tokens: parseInt((config.max_tokens as any) ?? 150),
-        temperature: parseFloat((config.temperature as any) ?? 0.7),
-        top_p: 1,
-      };
+      const body: any = { messages };
+      if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+        body.max_tokens = parseInt((config.max_tokens as any));
+      }
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+        body.temperature = parseFloat((config.temperature as any));
+      }
+      body.top_p = 1;
       if (config.model) body.model = config.model;
 
       const response = await axios.post(url, body, {
@@ -783,13 +907,13 @@ export class ChatService {
 
       // Try streaming first
       try {
-        const body: any = {
-          messages,
-          stream: true,
-          temperature: parseFloat((config.temperature as any) ?? 0.7),
-          max_tokens: parseInt((config.max_tokens as any) ?? 150),
-          top_p: 1,
-        };
+        const body: any = { messages, stream: true, top_p: 1 };
+        if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+          body.temperature = parseFloat((config.temperature as any));
+        }
+        if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
+          body.max_tokens = parseInt((config.max_tokens as any));
+        }
         if (config.model) body.model = config.model;
 
         const response = await axios.post(url, body, {
