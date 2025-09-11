@@ -108,7 +108,7 @@ export const AdminDashboard: React.FC = () => {
 
   const [newConfig, setNewConfig] = useState({
     name: '',
-    type: 'openai' as 'openai' | 'ollama' | 'azure',
+    type: 'openai' as 'openai' | 'ollama' | 'azure' | 'vllm',
     apiKey: '',
     endpoint: '',
     apiVersion: '',
@@ -945,7 +945,7 @@ export const AdminDashboard: React.FC = () => {
             <Select
               value={selectedConfig?.type || newConfig.type}
               onChange={(e) => {
-                const newType = e.target.value as 'openai' | 'ollama' | 'azure';
+                const newType = e.target.value as 'openai' | 'ollama' | 'azure' | 'vllm';
                 if (selectedConfig) {
                   const next: any = { ...selectedConfig, type: newType };
                   // Adjust endpoint defaults when switching type
@@ -955,6 +955,8 @@ export const AdminDashboard: React.FC = () => {
                     next.endpoint = 'http://localhost:11434';
                   } else if (newType === 'azure') {
                     next.endpoint = '';
+                  } else if (newType === 'vllm') {
+                    next.endpoint = 'http://vllm:8000/v1';
                   }
                   setSelectedConfig(next);
                 } else {
@@ -965,6 +967,8 @@ export const AdminDashboard: React.FC = () => {
                     next.endpoint = 'http://localhost:11434';
                   } else if (newType === 'azure') {
                     next.endpoint = '';
+                  } else if (newType === 'vllm') {
+                    next.endpoint = 'http://vllm:8000/v1';
                   }
                   setNewConfig(next);
                 }
@@ -973,11 +977,12 @@ export const AdminDashboard: React.FC = () => {
               <MenuItem value="openai">OpenAI</MenuItem>
               <MenuItem value="ollama">Ollama</MenuItem>
               <MenuItem value="azure">Azure</MenuItem>
+              <MenuItem value="vllm">vLLM</MenuItem>
             </Select>
           </FormControl>
           <TextField
             fullWidth
-            label={(selectedConfig?.type || newConfig.type) === 'azure' ? 'Base URL' : 'Endpoint URL'}
+            label={(selectedConfig?.type || newConfig.type) === 'azure' ? 'Base URL' : (selectedConfig?.type || newConfig.type) === 'vllm' ? 'vLLM Server URL' : 'Endpoint URL'}
             value={
               (selectedConfig?.type || newConfig.type) === 'openai'
                 ? 'https://api.openai.com/v1'
@@ -998,7 +1003,9 @@ export const AdminDashboard: React.FC = () => {
                 ? 'OpenAI endpoint is fixed to https://api.openai.com/v1'
                 : (selectedConfig?.type || newConfig.type) === 'ollama'
                   ? 'Enter the Ollama server endpoint URL (e.g., http://localhost:11434)'
-                  : 'Enter your Azure base URL (e.g., https://your-resource-name.openai.azure.com)'
+                  : (selectedConfig?.type || newConfig.type) === 'vllm'
+                    ? 'Enter the vLLM server URL (e.g., http://vllm:8000/v1)'
+                    : 'Enter your Azure base URL (e.g., https://your-resource-name.openai.azure.com)'
             }
           />
           {(selectedConfig?.type === 'azure' || newConfig.type === 'azure') && (
@@ -1057,7 +1064,7 @@ export const AdminDashboard: React.FC = () => {
               }}
             />
           )}
-          {(selectedConfig?.type === 'openai' || newConfig.type === 'openai' || selectedConfig?.type === 'azure' || newConfig.type === 'azure' || selectedConfig?.type === 'ollama' || newConfig.type === 'ollama') ? (
+          {(selectedConfig?.type === 'openai' || newConfig.type === 'openai' || selectedConfig?.type === 'azure' || newConfig.type === 'azure' || selectedConfig?.type === 'ollama' || newConfig.type === 'ollama' || selectedConfig?.type === 'vllm' || newConfig.type === 'vllm') ? (
             <Box sx={{ mt: 2, mb: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>
                 {((selectedConfig?.type || newConfig.type) === 'azure') ? (
@@ -1091,6 +1098,7 @@ export const AdminDashboard: React.FC = () => {
                         if (fetchingModels) return true;
                         if (type === 'openai') return !((apiKey) || endpoint);
                         if (type === 'ollama') return !endpoint;
+                        if (type === 'vllm') return !endpoint;
                         return true;
                       })()}
                       startIcon={fetchingModels ? <CircularProgress size={20} /> : null}
