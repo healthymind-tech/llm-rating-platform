@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE llm_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('openai', 'ollama', 'azure')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('openai', 'ollama', 'azure', 'vllm')),
     api_key TEXT,
     endpoint VARCHAR(255),
     api_version VARCHAR(50),
@@ -215,4 +215,5 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 -- Insert default LLM configurations
 INSERT INTO llm_configs (name, type, endpoint, model, temperature, max_tokens, is_enabled, is_default) VALUES
 ('GPT-4', 'openai', 'https://api.openai.com/v1', 'gpt-4', 0.7, 2048, true, true),
-('Ollama Local', 'ollama', 'http://localhost:11434', 'llama2', 0.8, 2048, true, false);
+('Ollama Local', 'ollama', 'http://localhost:11434', 'llama2', 0.8, 2048, true, false),
+('vLLM Local', 'vllm', 'http://vllm:8000/v1', 'internvl3_5-1b', 0.7, 2048, false, false);
