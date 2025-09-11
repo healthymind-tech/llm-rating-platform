@@ -236,7 +236,7 @@ export const configAPI = {
 
   createConfig: async (configData: Omit<LLMConfig, 'id' | 'createdAt' | 'updatedAt'>): Promise<LLMConfig> => {
     // Convert camelCase to snake_case for backend
-    const backendData = {
+    const backendData: any = {
       name: configData.name,
       type: configData.type,
       api_key: configData.apiKey,
@@ -244,14 +244,15 @@ export const configAPI = {
       api_version: (configData as any).apiVersion,
       deployment: (configData as any).deployment,
       model: configData.model,
+      // Always include these fields even if they are null
       temperature: configData.temperature,
       max_tokens: configData.maxTokens,
-      system_prompt: configData.systemPrompt,
       repetition_penalty: configData.repetitionPenalty,
       supports_vision: configData.supportsVision || false,
       is_enabled: configData.isEnabled,
       is_default: configData.isDefault,
     };
+    if (configData.systemPrompt !== undefined) backendData.system_prompt = configData.systemPrompt;
     const response = await api.post('/config', backendData);
     return response.data.config;
   },
@@ -266,10 +267,11 @@ export const configAPI = {
     if ((updates as any).apiVersion !== undefined) backendUpdates.api_version = (updates as any).apiVersion;
     if ((updates as any).deployment !== undefined) backendUpdates.deployment = (updates as any).deployment;
     if (updates.model !== undefined) backendUpdates.model = updates.model;
-    if (updates.temperature !== undefined) backendUpdates.temperature = updates.temperature;
-    if (updates.maxTokens !== undefined) backendUpdates.max_tokens = updates.maxTokens;
+    // Always include temperature, maxTokens, and repetitionPenalty even if they are null
+    backendUpdates.temperature = updates.temperature;
+    backendUpdates.max_tokens = updates.maxTokens;
+    backendUpdates.repetition_penalty = updates.repetitionPenalty;
     if (updates.systemPrompt !== undefined) backendUpdates.system_prompt = updates.systemPrompt;
-    if (updates.repetitionPenalty !== undefined) backendUpdates.repetition_penalty = updates.repetitionPenalty;
      if (updates.supportsVision !== undefined) backendUpdates.supports_vision = updates.supportsVision;
     if (updates.isEnabled !== undefined) backendUpdates.is_enabled = updates.isEnabled;
     if (updates.isDefault !== undefined) backendUpdates.is_default = updates.isDefault;
@@ -338,16 +340,17 @@ export const configAPI = {
     api_version?: string;
     deployment?: string;
   }): Promise<{ success: boolean; response?: string; message?: string; error?: string }> => {
-    const response = await api.post('/config/test-config', {
+    const body: any = {
       type: config.type,
       api_key: config.api_key,
       endpoint: config.endpoint,
       api_version: config.api_version,
       deployment: config.deployment,
       model: config.model,
-      temperature: config.temperature,
-      max_tokens: config.max_tokens,
-    });
+    };
+    if (config.temperature !== undefined) body.temperature = config.temperature;
+    if (config.max_tokens !== undefined) body.max_tokens = config.max_tokens;
+    const response = await api.post('/config/test-config', body);
     return response.data;
   },
 };
