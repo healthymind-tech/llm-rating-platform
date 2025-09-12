@@ -22,7 +22,7 @@ BEGIN
     BEGIN
         ALTER TABLE llm_configs
         ADD CONSTRAINT llm_configs_type_check
-        CHECK (type IN ('openai', 'ollama', 'azure'));
+        CHECK (type IN ('openai', 'ollama', 'azure', 'vllm'));
     EXCEPTION WHEN duplicate_object THEN
         -- already exists
     END;
