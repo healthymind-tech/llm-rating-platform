@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { User, LLMConfig } from '../types';
+import { useAuthStore } from '../store/authStore';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -23,6 +24,18 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Handle 403 Forbidden errors
+    if (error.response?.status === 403) {
+      // Clear the authentication token and redirect to login
+      const { logout } = useAuthStore.getState();
+      logout();
+      
+      // Reload the page to trigger the login form display
+      window.location.reload();
+      
+      return Promise.reject(error);
+    }
+    
     if (error.response?.data?.error) {
       // Extract error message from API response
       const customError = new Error(error.response.data.error);
@@ -122,6 +135,13 @@ export const chatAPI = {
       });
 
       if (!response.ok) {
+        // Handle 403 Forbidden errors in streaming API
+        if (response.status === 403) {
+          const { logout } = useAuthStore.getState();
+          logout();
+          window.location.reload();
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
