@@ -44,7 +44,7 @@ async function testEndpoints() {
         const testResponse = await axios.post(`${BASE_URL}/config/test-config`, {
           type: 'openai',
           model: 'gpt-3.5-turbo',
-          temperature: 0.7,
+          temperature: 1,
           max_tokens: 150
         }, { headers: authHeaders });
         

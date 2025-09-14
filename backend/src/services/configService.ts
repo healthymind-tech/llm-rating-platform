@@ -573,15 +573,24 @@ export class ConfigService {
               baseURL: config.endpoint.replace(/\/$/, ''), // Remove trailing slash
             });
             
-            const completion = await openai.chat.completions.create({
+            const localPayload: any = {
               model: config.model,
               messages: [
                 { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
                 { role: 'user', content: message },
               ],
-              temperature: config.temperature || 0.7,
-              max_tokens: config.max_tokens || 150,
-            });
+            };
+            
+            // Only add temperature if it's not null/undefined and not the default value (1)
+            if (config.temperature !== undefined && config.temperature !== null && config.temperature !== 1 && !isNaN(config.temperature)) {
+              localPayload.temperature = config.temperature;
+            }
+            
+            if (config.max_tokens || 150) {
+              localPayload.max_tokens = config.max_tokens || 150;
+            }
+            
+            const completion = await openai.chat.completions.create(localPayload);
             
             return completion.choices[0]?.message?.content || 'Test completed but no response received';
           } catch (localError: any) {
@@ -606,13 +615,18 @@ export class ConfigService {
           { role: 'user', content: message },
         ],
       };
-      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any)) {
+      
+      // Only add temperature if it's not null/undefined and not the default value (1)
+      // Some models like o1-preview, o1-mini only support temperature=1
+      if (config.temperature !== undefined && config.temperature !== null && config.temperature !== ('' as any) && config.temperature !== 1 && !isNaN(config.temperature)) {
         payload.temperature = config.temperature;
       }
       if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
         // @ts-ignore OpenAI Responses-style parameter for compatibility
         payload.max_completion_tokens = config.max_tokens;
       }
+      
+      console.log('OpenAI test payload:', JSON.stringify(payload, null, 2));
       const completion = await openai.chat.completions.create(payload);
 
       return completion.choices[0]?.message?.content || 'Test completed but no response received';

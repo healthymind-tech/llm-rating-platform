@@ -365,7 +365,7 @@ router.post('/test-config', authenticateToken, requireAdmin, async (req: AuthReq
       api_version: api_version || null,
       deployment: deployment || null,
       model,
-      temperature: (temperature !== undefined && temperature !== '') ? parseFloat(temperature) : undefined,
+      temperature: (temperature !== undefined && temperature !== '' && temperature !== null) ? parseFloat(temperature) : null,
       max_tokens: (max_tokens !== undefined && max_tokens !== '') ? parseInt(max_tokens) : undefined,
     };
 
