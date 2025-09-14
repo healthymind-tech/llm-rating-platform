@@ -149,6 +149,14 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
                 value={selectedLLM || ''}
                 onChange={(e) => setSelectedLLM(e.target.value || null)}
                 label="Preferred LLM"
+                sx={{
+                  backgroundColor: 'background.paper',
+                  borderRadius: 1.5,
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'primary.main',
+                    borderWidth: 2
+                  }
+                }}
               >
                 <MenuItem value="">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
@@ -213,7 +221,7 @@ export const LLMPreferences: React.FC<LLMPreferencesProps> = ({ open, onClose })
 
             {/* Current Selection Info */}
             {getCurrentLLM() && (
-              <Card sx={{ bgcolor: 'grey.50', mb: 2 }}>
+              <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 2 }}>
                 <CardContent sx={{ py: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
                     {selectedLLM ? 'Selected Model:' : 'Using System Default:'}

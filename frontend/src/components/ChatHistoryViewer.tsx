@@ -347,7 +347,10 @@ export const ChatHistoryViewer: React.FC = () => {
         sx={{
           p: 2,
           maxWidth: '70%',
-          bgcolor: message.role === 'user' ? '#e3f2fd' : '#f3e5f5',
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 2,
         }}
       >
         <Typography variant="body2" sx={{ mb: 1 }}>
@@ -444,9 +447,13 @@ export const ChatHistoryViewer: React.FC = () => {
           borderRadius: 4,
           boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
           overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.95) 100%)',
+          background: theme.palette.mode === 'light'
+            ? 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(2,6,23,0.7) 0%, rgba(15,23,42,0.8) 100%)',
           backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.2)'
+          border: theme.palette.mode === 'light' 
+            ? '1px solid rgba(2, 6, 23, 0.06)'
+            : '1px solid rgba(255,255,255,0.06)'
         }}>
           <Box sx={{ 
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',

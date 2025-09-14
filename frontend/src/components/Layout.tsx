@@ -12,13 +12,14 @@ import {
   Avatar,
   Chip,
 } from '@mui/material';
-import { ExitToApp, Psychology, Person, Tune } from '@mui/icons-material';
+import { ExitToApp, Psychology, Person, Tune, DarkMode, LightMode } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage } from '../hooks/useLanguage';
 import { userProfileAPI } from '../services/api';
 import { UserProfileForm, ProfileData } from './UserProfileForm';
 import { LLMPreferences } from './LLMPreferences';
+import { useThemeMode } from '../theme/ThemeModeProvider';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -35,6 +36,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [showLLMPreferences, setShowLLMPreferences] = React.useState(false);
   const [profileLoading, setProfileLoading] = React.useState(false);
   const [userProfile, setUserProfile] = React.useState<any>(null);
+  const { mode, toggleMode } = useThemeMode();
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -146,6 +148,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   }}
                 />
               )}
+              <IconButton
+                size={isMobile ? 'small' : 'medium'}
+                onClick={toggleMode}
+                sx={{
+                  color: 'white',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' }
+                }}
+                aria-label="Toggle theme"
+              >
+                {mode === 'light' ? <DarkMode fontSize={isMobile ? 'small' : 'medium'} /> : <LightMode fontSize={isMobile ? 'small' : 'medium'} />}
+              </IconButton>
               <IconButton
                 size={isMobile ? "medium" : "large"}
                 onClick={handleMenu}

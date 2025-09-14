@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
+import { useTheme } from '@mui/material/styles';
 import { LoginForm } from './components/LoginForm';
 import { Layout } from './components/Layout';
 import { UserDashboard } from './components/UserDashboard';
@@ -11,28 +10,31 @@ import { ProfileCompletionCheck } from './components/ProfileCompletionCheck';
 import { useAuthStore } from './store/authStore';
 import { authAPI } from './services/api';
 import { Box, Typography } from '@mui/material';
-import { theme } from './theme';
+import { ThemeModeProvider } from './theme/ThemeModeProvider';
 
-const UnauthorizedPage = () => (
-  <Box
-    display="flex"
-    justifyContent="center"
-    alignItems="center"
-    minHeight="100vh"
-    flexDirection="column"
-    sx={{
-      background: theme.custom.gradients.background,
-      p: 3,
-    }}
-  >
-    <Typography variant="h4" gutterBottom sx={{ textAlign: 'center', mb: 2 }}>
-      Unauthorized
-    </Typography>
-    <Typography variant="body1" sx={{ textAlign: 'center', opacity: 0.8 }}>
-      You don't have permission to access this page.
-    </Typography>
-  </Box>
-);
+const UnauthorizedPage: React.FC = () => {
+  const theme = useTheme();
+  return (
+    <Box
+      display="flex"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="100vh"
+      flexDirection="column"
+      sx={{
+        background: theme.custom.gradients.background,
+        p: 3,
+      }}
+    >
+      <Typography variant="h4" gutterBottom sx={{ textAlign: 'center', mb: 2 }}>
+        Unauthorized
+      </Typography>
+      <Typography variant="body1" sx={{ textAlign: 'center', opacity: 0.8 }}>
+        You don't have permission to access this page.
+      </Typography>
+    </Box>
+  );
+};
 
 function App() {
   const { isAuthenticated, user, login } = useAuthStore();
@@ -48,16 +50,14 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
+      <ThemeModeProvider>
         <LoginForm onLogin={handleLogin} />
-      </ThemeProvider>
+      </ThemeModeProvider>
     );
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <ThemeModeProvider>
       <Router>
         <Layout>
           <ProfileCompletionCheck>
@@ -93,7 +93,7 @@ function App() {
           </ProfileCompletionCheck>
         </Layout>
       </Router>
-    </ThemeProvider>
+    </ThemeModeProvider>
   );
 }
 

@@ -1,4 +1,5 @@
 import { createTheme, ThemeOptions } from '@mui/material/styles';
+import type { PaletteMode } from '@mui/material';
 
 declare module '@mui/material/styles' {
   interface Theme {
@@ -42,28 +43,28 @@ declare module '@mui/material/styles' {
   }
 }
 
-const themeOptions: ThemeOptions = {
+const baseThemeOptions = (mode: PaletteMode): ThemeOptions => ({
   palette: {
-    mode: 'light',
+    mode,
     primary: {
-      main: '#6366f1', // Modern indigo
-      light: '#818cf8',
-      dark: '#4f46e5',
+      main: mode === 'light' ? '#2563eb' : '#60a5fa',
+      light: mode === 'light' ? '#3b82f6' : '#93c5fd',
+      dark: mode === 'light' ? '#1d4ed8' : '#3b82f6',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#ec4899', // Modern pink
-      light: '#f472b6',
-      dark: '#db2777',
-      contrastText: '#ffffff',
+      main: mode === 'light' ? '#0ea5e9' : '#22d3ee',
+      light: mode === 'light' ? '#38bdf8' : '#67e8f9',
+      dark: mode === 'light' ? '#0284c7' : '#06b6d4',
+      contrastText: '#0b1220',
     },
     background: {
-      default: '#f8fafc',
-      paper: '#ffffff',
+      default: mode === 'light' ? '#f6f7fb' : '#0b1220',
+      paper: mode === 'light' ? '#ffffff' : '#0f172a',
     },
     text: {
-      primary: '#1e293b',
-      secondary: '#64748b',
+      primary: mode === 'light' ? '#0f172a' : '#e2e8f0',
+      secondary: mode === 'light' ? '#475569' : '#94a3b8',
     },
     error: {
       main: '#ef4444',
@@ -156,14 +157,32 @@ const themeOptions: ThemeOptions = {
   spacing: 8,
   custom: {
     gradients: {
-      primary: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-      secondary: 'linear-gradient(135deg, #ec4899 0%, #f59e0b 100%)',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      primary:
+        mode === 'light'
+          ? 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)'
+          : 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+      secondary:
+        mode === 'light'
+          ? 'linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)'
+          : 'linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%)',
+      background:
+        mode === 'light'
+          ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(14,165,233,0.06) 100%)'
+          : 'linear-gradient(135deg, rgba(96,165,250,0.08) 0%, rgba(34,211,238,0.08) 100%)',
     },
     shadows: {
-      card: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-      button: '0 4px 14px 0 rgba(99, 102, 241, 0.25)',
-      input: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+      card:
+        mode === 'light'
+          ? '0 8px 24px rgba(15, 23, 42, 0.06)'
+          : '0 8px 24px rgba(0,0,0,0.5)',
+      button:
+        mode === 'light'
+          ? '0 6px 16px rgba(37, 99, 235, 0.25)'
+          : '0 6px 16px rgba(2, 132, 199, 0.35)',
+      input:
+        mode === 'light'
+          ? '0 1px 2px rgba(0, 0, 0, 0.06)'
+          : '0 1px 2px rgba(0, 0, 0, 0.7)',
     },
     borderRadius: {
       small: '6px',
@@ -171,16 +190,20 @@ const themeOptions: ThemeOptions = {
       large: '16px',
     },
   },
-};
+});
 
-export const theme = createTheme({
-  ...themeOptions,
+export const getTheme = (mode: PaletteMode = 'light') =>
+  createTheme({
+  ...baseThemeOptions(mode),
   components: {
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          backgroundColor: '#f8fafc',
-          backgroundImage: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%)',
+          backgroundColor: mode === 'light' ? '#f6f7fb' : '#0b1220',
+          backgroundImage:
+            mode === 'light'
+              ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.04) 0%, rgba(14,165,233,0.04) 100%)'
+              : 'linear-gradient(135deg, rgba(96,165,250,0.06) 0%, rgba(34,211,238,0.06) 100%)',
         },
       },
     },
@@ -195,20 +218,24 @@ export const theme = createTheme({
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
             transform: 'translateY(-1px)',
-            boxShadow: '0 4px 14px 0 rgba(99, 102, 241, 0.25)',
+            boxShadow: mode === 'light' ? '0 6px 16px rgba(37, 99, 235, 0.2)' : '0 6px 16px rgba(2, 132, 199, 0.3)'
           },
         },
         contained: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          background: mode === 'light'
+            ? 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)'
+            : 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+            background: mode === 'light'
+              ? 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)'
+              : 'linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%)',
           },
         },
         outlined: {
           borderWidth: '1.5px',
           '&:hover': {
             borderWidth: '1.5px',
-            backgroundColor: 'rgba(99, 102, 241, 0.04)',
+            backgroundColor: mode === 'light' ? 'rgba(37, 99, 235, 0.06)' : 'rgba(96,165,250,0.1)',
           },
         },
       },
@@ -217,12 +244,12 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 16,
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: mode === 'light' ? '0 8px 24px rgba(15, 23, 42, 0.06)' : '0 8px 24px rgba(0,0,0,0.5)',
+          border: mode === 'light' ? '1px solid rgba(2, 6, 23, 0.06)' : '1px solid rgba(255,255,255,0.06)',
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
             transform: 'translateY(-2px)',
-            boxShadow: '0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            boxShadow: mode === 'light' ? '0 10px 28px rgba(15, 23, 42, 0.08)' : '0 10px 28px rgba(0,0,0,0.6)',
           },
         },
       },
@@ -234,13 +261,13 @@ export const theme = createTheme({
           backgroundImage: 'none',
         },
         elevation1: {
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+          boxShadow: mode === 'light' ? '0 1px 3px rgba(15, 23, 42, 0.06)' : '0 1px 3px rgba(0,0,0,0.7)',
         },
         elevation2: {
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          boxShadow: mode === 'light' ? '0 4px 12px rgba(15, 23, 42, 0.08)' : '0 4px 12px rgba(0,0,0,0.7)',
         },
         elevation4: {
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          boxShadow: mode === 'light' ? '0 10px 20px rgba(15, 23, 42, 0.1)' : '0 10px 20px rgba(0,0,0,0.8)',
         },
       },
     },
@@ -252,13 +279,13 @@ export const theme = createTheme({
             transition: 'all 0.2s ease-in-out',
             '&:hover': {
               '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: '#6366f1',
+                borderColor: mode === 'light' ? '#2563eb' : '#60a5fa',
               },
             },
             '&.Mui-focused': {
               '& .MuiOutlinedInput-notchedOutline': {
                 borderWidth: '2px',
-                borderColor: '#6366f1',
+                borderColor: mode === 'light' ? '#2563eb' : '#60a5fa',
               },
             },
           },
@@ -272,12 +299,16 @@ export const theme = createTheme({
           fontWeight: 500,
         },
         colorPrimary: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          background: mode === 'light'
+            ? 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)'
+            : 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
           color: 'white',
         },
         colorSecondary: {
-          background: 'linear-gradient(135deg, #ec4899 0%, #f59e0b 100%)',
-          color: 'white',
+          background: mode === 'light'
+            ? 'linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)'
+            : 'linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%)',
+          color: mode === 'light' ? '#0b1220' : '#052641',
         },
       },
     },
@@ -288,8 +319,8 @@ export const theme = createTheme({
           border: 'none',
         },
         standardInfo: {
-          backgroundColor: 'rgba(99, 102, 241, 0.1)',
-          color: '#4f46e5',
+          backgroundColor: mode === 'light' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(59,130,246,0.1)',
+          color: mode === 'light' ? '#1d4ed8' : '#93c5fd',
         },
         standardSuccess: {
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -326,13 +357,13 @@ export const theme = createTheme({
     MuiTypography: {
       styleOverrides: {
         h1: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          background: mode === 'light' ? 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' : 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
         },
         h2: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          background: mode === 'light' ? 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' : 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
@@ -342,16 +373,16 @@ export const theme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          background: mode === 'light' ? 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' : 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+          boxShadow: mode === 'light' ? '0 4px 12px rgba(15, 23, 42, 0.08)' : '0 4px 12px rgba(0,0,0,0.6)',
         },
       },
     },
     MuiDrawer: {
       styleOverrides: {
         paper: {
-          background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-          borderRight: '1px solid rgba(0, 0, 0, 0.08)',
+          background: mode === 'light' ? 'linear-gradient(180deg, #ffffff 0%, #f6f7fb 100%)' : 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)',
+          borderRight: mode === 'light' ? '1px solid rgba(2, 6, 23, 0.06)' : '1px solid rgba(255,255,255,0.06)',
         },
       },
     },

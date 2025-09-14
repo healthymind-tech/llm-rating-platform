@@ -575,10 +575,7 @@ export class ConfigService {
             
             const localPayload: any = {
               model: config.model,
-              messages: [
-                { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
-                { role: 'user', content: message },
-              ],
+              prompt: message,
             };
             
             // Only add temperature if it's not null/undefined and not the default value (1)
@@ -590,9 +587,9 @@ export class ConfigService {
               localPayload.max_tokens = config.max_tokens || 150;
             }
             
-            const completion = await openai.chat.completions.create(localPayload);
+            const completion = await openai.completions.create(localPayload);
             
-            return completion.choices[0]?.message?.content || 'Test completed but no response received';
+            return completion.choices[0]?.text || 'Test completed but no response received';
           } catch (localError: any) {
             // If local test fails, return demo mode message
             return `Demo mode: Configuration test successful! (No API key configured - local endpoint test failed: ${localError.message})`;
@@ -610,10 +607,7 @@ export class ConfigService {
 
       const payload: any = {
         model: config.model,
-        messages: [
-          { role: 'system', content: 'You are a helpful AI assistant. Respond briefly to test messages.' },
-          { role: 'user', content: message },
-        ],
+        prompt: message,
       };
       
       // Only add temperature if it's not null/undefined and not the default value (1)
@@ -622,14 +616,13 @@ export class ConfigService {
         payload.temperature = config.temperature;
       }
       if (config.max_tokens !== undefined && config.max_tokens !== null && config.max_tokens !== ('' as any)) {
-        // @ts-ignore OpenAI Responses-style parameter for compatibility
-        payload.max_completion_tokens = config.max_tokens;
+        payload.max_tokens = config.max_tokens;
       }
       
       console.log('OpenAI test payload:', JSON.stringify(payload, null, 2));
-      const completion = await openai.chat.completions.create(payload);
+      const completion = await openai.completions.create(payload);
 
-      return completion.choices[0]?.message?.content || 'Test completed but no response received';
+      return completion.choices[0]?.text || 'Test completed but no response received';
     } catch (error: any) {
       console.error('OpenAI test error:', error);
       

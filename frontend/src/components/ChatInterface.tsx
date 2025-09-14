@@ -344,7 +344,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             borderBottom: '8px solid #6366f1'
                           }
                         } : {
-                          backgroundColor: 'white',
+                          backgroundColor: theme.palette.background.paper,
                           border: '1px solid rgba(99, 102, 241, 0.1)',
                           color: 'text.primary',
                           '&::before': {
@@ -356,7 +356,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             height: 0,
                             borderLeft: '8px solid transparent',
                             borderRight: '8px solid transparent',
-                            borderBottom: '8px solid white'
+                            borderBottom: `8px solid ${theme.palette.background.paper}`
                           }
                         })
                       }}
@@ -560,7 +560,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: theme.custom.borderRadius.medium,
-                backgroundColor: isDragging ? theme.palette.action.hover : 'white',
+                backgroundColor: isDragging ? theme.palette.action.hover : theme.palette.background.paper,
                 fontSize: { xs: '0.9rem', sm: '1rem' },
                 '&.Mui-focused': {
                   '& .MuiOutlinedInput-notchedOutline': {

@@ -43,7 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
               An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.
             </Typography>
             {process.env.NODE_ENV === 'development' && this.state.error && (
-              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
                 <Typography variant="caption" component="pre" sx={{ textAlign: 'left' }}>
                   {this.state.error.message}
                 </Typography>

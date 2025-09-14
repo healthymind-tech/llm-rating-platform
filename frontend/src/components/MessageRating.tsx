@@ -128,7 +128,7 @@ export const MessageRatingComponent: React.FC<MessageRatingProps> = ({
 
   return (
     <>
-      <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+      <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
         <Typography variant="body2" color="textSecondary" gutterBottom>
           {t('rating.prompt')}
         </Typography>
